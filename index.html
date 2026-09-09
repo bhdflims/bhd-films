@@ -5,17 +5,21 @@
     <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
     <link rel="manifest" id="app-manifest" href="/manifest.webmanifest" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" id="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
     <meta name="theme-color" content="#0a0a12" />
     <meta name="description" content="BHD Films - Premium social media growth services" />
     <!-- These three enable "Add to Home Screen" to open full-screen (no browser
          address bar) on iOS Safari and Android Chrome - still a normal website,
          just presented app-style once a user chooses to add it to their home screen.
-         The manifest link and the app title above are swapped at runtime (see
-         ManifestSwitcher.jsx) between the customer app and the admin panel, so
-         "Add to Home Screen" from /admin creates a SEPARATE icon that opens
-         straight into the admin login, instead of always opening the customer app. -->
+         The manifest link, the apple-touch-icon, and the app title above are all
+         swapped at runtime (see ManifestSwitcher.jsx) between the customer app and
+         the admin panel, so "Add to Home Screen" from /admin creates a SEPARATE
+         icon (its own picture and name) that opens straight into the admin login,
+         instead of always looking like and opening the customer app. iOS Safari's
+         "Add to Home Screen" reads the icon from THIS apple-touch-icon tag, not
+         from the manifest's icons list - so both have to be swapped, not just the
+         manifest link. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" id="apple-title" content="BHD Films" />
