@@ -103,6 +103,18 @@ export function AuthProvider({ children }) {
   // that originally only had Google sign-in). After this, the same
   // account can log in either with Google or with email+password.
   const updatePassword = useCallback(async (newPassword) => {
+    // Right after landing on a fresh page (e.g. straight after logging in
+    // and being redirected to the dashboard), the Supabase auth library can
+    // occasionally not have finished loading the session into its own
+    // internal memory yet, even though we're clearly logged in - and the
+    // very next call, like this one, would fail with "Auth session
+    // missing!". Explicitly asking for the session first forces the
+    // library to load/confirm it before we try to change the password, so
+    // that split-second timing gap can't cause this call to fail.
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      throw new Error('Your login session is not ready yet. Please wait a moment and try again.')
+    }
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) throw error
   }, [])
