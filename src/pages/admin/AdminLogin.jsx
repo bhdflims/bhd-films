@@ -45,7 +45,10 @@ export default function AdminLogin() {
     setSubmitting(true)
     try {
       await signInWithPassword(email.trim(), password)
-      navigate('/admin', { replace: true })
+      // No explicit navigate() here on purpose - see the note on
+      // handleVerifyCode below for why. The "if (isLoggedIn && isAdmin)"
+      // check near the top of this component reacts once the admin-role
+      // lookup has actually finished, and sends us to /admin then.
     } catch (err) {
       setError(err.message || 'Could not log in. Check your email and password.')
     } finally {
@@ -79,7 +82,20 @@ export default function AdminLogin() {
     setCodeBusy(true)
     try {
       await verifyLoginCode(codeEmail.trim(), code.trim())
-      navigate('/admin', { replace: true })
+      // Deliberately NOT calling navigate('/admin') here. verifyLoginCode
+      // resolving only means Supabase accepted the code - it does NOT mean
+      // this component's own admin-role lookup (which runs in the
+      // background, triggered by AuthContext's onAuthStateChange) has
+      // finished yet. Some phone browsers (notably iPhone Safari/Chrome,
+      // which both run on Apple's WebKit engine) fire that background
+      // lookup slightly LATER than an immediate navigate() here would run,
+      // which used to send us to /admin BEFORE we actually knew whether
+      // this account is an admin - and got treated as a regular customer
+      // as a result. Instead we just wait: "loading" (below) covers this
+      // exact in-between period and shows a spinner, and the
+      // "isLoggedIn && isAdmin" check near the top of this component does
+      // the actual redirect to /admin, but only once the role lookup has
+      // truly finished - so it can never fire too early again.
     } catch (e) {
       setError(e.message || 'That code is incorrect or expired. Please try again.')
     } finally {
