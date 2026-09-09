@@ -8,7 +8,7 @@ import Loader from '../../components/common/Loader'
 import EmptyState from '../../components/common/EmptyState'
 import ServiceCalculatorCard from '../../components/services/ServiceCalculatorCard'
 import { getIcon } from '../../utils/iconMap'
-import { formatCurrency } from '../../utils/format'
+import { formatCurrency, formatRate } from '../../utils/format'
 import { calculateServiceTotal, validateQuantity } from '../../utils/pricing'
 import { isValidTargetLink, targetLinkErrorMessage } from '../../utils/validators'
 
@@ -292,7 +292,7 @@ export default function CategoryOrder() {
               {lineItems.map((item) => (
                 <div key={item.service.id} className="row-between" style={{ fontSize: 12.5, marginBottom: 6 }}>
                   <span className="text-dim">
-                    {item.service.name} ({item.quantity || 0} × {formatCurrency(item.rate)})
+                    {item.service.name} ({item.quantity || 0} × {formatRate(item.rate)})
                   </span>
                   <span style={{ fontWeight: 700 }}>{formatCurrency(item.total)}</span>
                 </div>

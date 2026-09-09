@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import Loader from '../../components/common/Loader'
 import EmptyState from '../../components/common/EmptyState'
 import Modal from '../../components/common/Modal'
-import { formatCurrency, formatDate } from '../../utils/format'
+import { formatCurrency, formatRate, formatDate } from '../../utils/format'
 
 const STATUS_CHIP = {
   received: 'chip-info',
@@ -142,7 +142,7 @@ export default function OrderHistory() {
                         <span>{formatCurrency(item.item_total)}</span>
                       </div>
                       <div className="text-faint" style={{ fontSize: 11 }}>
-                        Qty {item.quantity} × {formatCurrency(item.applied_rate)}
+                        Qty {item.quantity} × {formatRate(item.applied_rate)}
                       </div>
                       {item.target_link && (
                         <div className="text-faint" style={{ fontSize: 11, wordBreak: 'break-all' }}>

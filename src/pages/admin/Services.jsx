@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import Modal from '../../components/common/Modal'
-import { formatCurrency } from '../../utils/format'
+import { formatRate } from '../../utils/format'
 
 const PLATFORM_OPTIONS = ['instagram', 'facebook', 'tiktok', 'youtube', 'twitter', 'telegram', 'whatsapp', 'spotify', 'threads', 'linkedin', 'snapchat', 'pinterest', 'custom']
 
@@ -143,7 +143,7 @@ export default function Services() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700, fontSize: 13.5 }}>{svc.name}</div>
               <div className="text-faint" style={{ fontSize: 11 }}>
-                {categoryName(svc.category_id)} · {svc.min_quantity}–{svc.max_quantity} · {formatCurrency(svc.base_rate)}/unit
+                {categoryName(svc.category_id)} · {svc.min_quantity}–{svc.max_quantity} · {formatRate(svc.base_rate)}/unit
               </div>
             </div>
             {svc.is_popular && <span className="chip chip-gold">Popular</span>}

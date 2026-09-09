@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import NotifyCustomersButton from '../../components/common/NotifyCustomersButton'
-import { formatCurrency, formatDate } from '../../utils/format'
+import { formatRate, formatDate } from '../../utils/format'
 
 export default function RateControl() {
   const [loading, setLoading] = useState(true)
@@ -92,7 +92,7 @@ export default function RateControl() {
               <div className="row-between">
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 13.5 }}>{svc.name}</div>
-                  <div className="text-faint" style={{ fontSize: 11 }}>{categoryName(svc.category_id)} · current: {formatCurrency(svc.base_rate)}</div>
+                  <div className="text-faint" style={{ fontSize: 11 }}>{categoryName(svc.category_id)} · current: {formatRate(svc.base_rate)}</div>
                 </div>
                 <button className="icon-btn" onClick={() => toggleHistory(svc)}>
                   {expanded === svc.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -126,7 +126,7 @@ export default function RateControl() {
                 <div style={{ marginTop: 8 }}>
                   <NotifyCustomersButton
                     title="💸 Price Update"
-                    body={`${justUpdated.name} is now ${formatCurrency(justUpdated.rate)} per unit on BHD Films.`}
+                    body={`${justUpdated.name} is now ${formatRate(justUpdated.rate)} per unit on BHD Films.`}
                     url={`/services`}
                     label="Notify Customers of New Rate"
                   />

@@ -6,6 +6,22 @@ export function formatCurrency(amount) {
   })}`
 }
 
+// For PER-UNIT RATES specifically (a service's price per follower/view/etc),
+// not for totals, wallet balances, or anything else - those should keep
+// using formatCurrency above. Rates can be set as small as ₹0.0001 (see the
+// "New rate" field in Rate Control, which allows 4 decimal places), and
+// formatCurrency's normal 2-decimal rounding would show a rate like ₹0.001
+// as "₹0.00" - looking exactly like it's free, when it isn't. This shows up
+// to 4 decimal places instead, only when the extra precision is actually
+// needed, so ordinary rates like ₹1.50 still display simply.
+export function formatRate(amount) {
+  const value = Number(amount ?? 0)
+  return `₹${value.toLocaleString('en-IN', {
+    minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 4
+  })}`
+}
+
 export function formatDate(dateString) {
   if (!dateString) return '-'
   const d = new Date(dateString)
