@@ -33,11 +33,31 @@ const CORS_HEADERS = {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY')
-const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')
-const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com'
+// Trim in case the key was copy-pasted into the Supabase Secrets form with
+// a stray leading/trailing space or line break - easy to do by accident,
+// and web-push's own validation rejects a key with even one extra
+// character, which used to crash this ENTIRE function (see below).
+const VAPID_PUBLIC_KEY = (Deno.env.get('VAPID_PUBLIC_KEY') || '').trim()
+const VAPID_PRIVATE_KEY = (Deno.env.get('VAPID_PRIVATE_KEY') || '').trim()
+const VAPID_SUBJECT = (Deno.env.get('VAPID_SUBJECT') || 'mailto:admin@example.com').trim()
 
-webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY ?? '', VAPID_PRIVATE_KEY ?? '')
+// IMPORTANT: this used to call webpush.setVapidDetails(...) here, at the
+// top of the file, outside of any try/catch. If the VAPID keys were ever
+// missing or even slightly malformed, that call threw immediately while
+// the function was still starting up - which crashed the WHOLE function
+// before it could even look at the incoming request, for every single
+// call, with no useful error message (Supabase just reports a generic
+// "non-2xx status code" and the function's own logs show a bare
+// "shutdown" / "EarlyDrop", no actual error text). Moving it inside the
+// request handler, wrapped in the same try/catch as everything else,
+// means a bad key now produces a proper, readable error response instead
+// of silently taking down the function.
+let vapidReady = false
+function ensureVapidConfigured() {
+  if (vapidReady) return
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
+  vapidReady = true
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -47,6 +67,14 @@ Deno.serve(async (req) => {
   try {
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
       throw new Error('Server is missing required secrets. See SETUP.md.')
+    }
+    try {
+      ensureVapidConfigured()
+    } catch (vapidErr) {
+      throw new Error(
+        `VAPID keys are set but invalid (${vapidErr?.message || 'unknown reason'}). ` +
+          'Double-check VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in Supabase Edge Function Secrets for extra spaces or missing characters.'
+      )
     }
 
     const authHeader = req.headers.get('Authorization') || ''
