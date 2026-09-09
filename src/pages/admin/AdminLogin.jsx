@@ -90,7 +90,7 @@ export default function AdminLogin() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, background: '#08070c' }}>
       <motion.img
-        src="/icons/icon-192.png"
+        src="/icons/icon-admin-192.png"
         alt="BHD Films"
         style={{ width: 72, height: 72, borderRadius: 20, marginBottom: 16 }}
         animate={{ scale: [1, 1.045, 1], filter: ['drop-shadow(0 0 6px rgba(212,175,55,0.35))', 'drop-shadow(0 0 16px rgba(212,175,55,0.6))', 'drop-shadow(0 0 6px rgba(212,175,55,0.35))'] }}

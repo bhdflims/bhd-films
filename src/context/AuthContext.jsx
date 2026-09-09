@@ -9,6 +9,14 @@ export function AuthProvider({ children }) {
   const [adminRole, setAdminRole] = useState(null) // null | 'super_admin' | 'admin' | 'staff'
   const [adminPermissions, setAdminPermissions] = useState({})
   const [loading, setLoading] = useState(true)
+  // True any time we're (re)loading the profile/admin-role for the
+  // CURRENT session - not just on first page load. Without this, right
+  // after a fresh login the app briefly has isLoggedIn=true but
+  // adminRole still null (the admin_users lookup hasn't finished yet),
+  // so an admin could get bounced to the customer app for a split
+  // second before the real role loads. Routes wait on this too (see
+  // the combined "loading" below) so that race can't happen.
+  const [profileLoading, setProfileLoading] = useState(false)
 
   const loadProfile = useCallback(async (userId) => {
     if (!userId) {
@@ -17,20 +25,25 @@ export function AuthProvider({ children }) {
       setAdminPermissions({})
       return
     }
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
-    setProfile(profileData)
+    setProfileLoading(true)
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle()
+      setProfile(profileData)
 
-    const { data: adminData } = await supabase
-      .from('admin_users')
-      .select('role, permissions')
-      .eq('id', userId)
-      .maybeSingle()
-    setAdminRole(adminData?.role || null)
-    setAdminPermissions(adminData?.permissions || {})
+      const { data: adminData } = await supabase
+        .from('admin_users')
+        .select('role, permissions')
+        .eq('id', userId)
+        .maybeSingle()
+      setAdminRole(adminData?.role || null)
+      setAdminPermissions(adminData?.permissions || {})
+    } finally {
+      setProfileLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -109,7 +122,7 @@ export function AuthProvider({ children }) {
     adminPermissions,
     isAdmin: !!adminRole,
     isSuperAdmin: adminRole === 'super_admin',
-    loading,
+    loading: loading || profileLoading,
     signInWithGoogle,
     signInWithPassword,
     sendLoginCode,
