@@ -6,6 +6,7 @@ import AppLayout from './components/navigation/AppLayout'
 import BareLayout from './components/navigation/BareLayout'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import AdminRoute from './components/common/AdminRoute'
+import ManifestSwitcher from './components/common/ManifestSwitcher'
 
 import Home from './pages/customer/Home'
 import Services from './pages/customer/Services'
@@ -51,6 +52,7 @@ export default function App() {
     <AuthProvider>
       <InstallPromptProvider>
       <BrowserRouter>
+        <ManifestSwitcher />
         <Routes>
           {/* Customer app - bottom nav layout */}
           <Route element={<AppLayout />}>
