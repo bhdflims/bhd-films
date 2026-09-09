@@ -67,6 +67,25 @@ export function AuthProvider({ children }) {
     if (error) throw error
   }, [])
 
+  // Sends a 6-digit login code to the customer's email (works for both
+  // brand new customers and returning ones - Supabase creates the
+  // account automatically the first time). Step 1 of the email-code
+  // sign-in flow.
+  const sendLoginCode = useCallback(async (email) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { shouldCreateUser: true }
+    })
+    if (error) throw error
+  }, [])
+
+  // Verifies the 6-digit code the customer typed in. Step 2 - this
+  // actually logs them in (or finishes registering them, if new).
+  const verifyLoginCode = useCallback(async (email, code) => {
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
+    if (error) throw error
+  }, [])
+
   // Sets/changes a password on the CURRENTLY logged-in account (e.g. one
   // that originally only had Google sign-in). After this, the same
   // account can log in either with Google or with email+password.
@@ -93,6 +112,8 @@ export function AuthProvider({ children }) {
     loading,
     signInWithGoogle,
     signInWithPassword,
+    sendLoginCode,
+    verifyLoginCode,
     updatePassword,
     signOut,
     refreshProfile
