@@ -23,7 +23,7 @@ export default function Dashboard() {
   const [pwBusy, setPwBusy] = useState(false)
   const [pwError, setPwError] = useState('')
   const [pwDone, setPwDone] = useState(false)
-  const [filter, setFilter] = useState('month')
+  const [filter, setFilter] = useState('today')
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState(null)
   const [recentOrders, setRecentOrders] = useState([])
