@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Clapperboard, Chrome, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import Loader from '../../components/common/Loader'
 
 export default function Login() {
-  const { signInWithGoogle, sendLoginCode, verifyLoginCode, isLoggedIn } = useAuth()
+  const { signInWithGoogle, sendLoginCode, verifyLoginCode, isLoggedIn, isAdmin, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState('')
@@ -16,8 +17,19 @@ export default function Login() {
   const [codeSent, setCodeSent] = useState(false)
   const [codeBusy, setCodeBusy] = useState(false)
 
+  // Wait for the admin-role lookup to finish before deciding where to
+  // send a logged-in user. Without this wait, an admin account would
+  // flash "isAdmin: false" (it hasn't loaded yet) and get sent into the
+  // customer app instead of /admin.
+  if (authLoading) return <Loader />
+
+  // If this account is an admin, always land in the admin panel - even
+  // if this customer login screen is what happened to load first (e.g.
+  // a phone's home-screen icon or a bookmark pointing at the customer
+  // site instead of /admin). Without this, an admin who signs in here
+  // ends up dropped into the customer app instead of their own panel.
   if (isLoggedIn) {
-    navigate(location.state?.from || '/', { replace: true })
+    navigate(isAdmin ? '/admin' : (location.state?.from || '/'), { replace: true })
     return null
   }
 
