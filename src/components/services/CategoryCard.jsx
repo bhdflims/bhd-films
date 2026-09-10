@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { getIcon } from '../../utils/iconMap'
-import { formatCurrency } from '../../utils/format'
+import { formatRate } from '../../utils/format'
 
 const GRADIENTS = [
   'linear-gradient(135deg,#d4af37,#e6c766)',
@@ -51,7 +51,7 @@ export default function CategoryCard({ category, fromPrice }) {
         <Icon size={20} />
       </motion.div>
       <span className="category-name">{category.name}</span>
-      {fromPrice != null && <span className="category-price">From {formatCurrency(fromPrice)}</span>}
+      {fromPrice != null && <span className="category-price">From {formatRate(fromPrice)}</span>}
     </button>
   )
 }

@@ -8,7 +8,7 @@ import CouponUnbox from '../../components/common/CouponUnbox'
 import Loader from '../../components/common/Loader'
 import EmptyState from '../../components/common/EmptyState'
 import { getIcon } from '../../utils/iconMap'
-import { formatCurrency } from '../../utils/format'
+import { formatRate } from '../../utils/format'
 
 function getGreeting() {
   const hour = new Date().getHours()
@@ -191,7 +191,7 @@ export default function Home() {
                   </span>
                   <span className="popular-name">{s.name}</span>
                   <span className="popular-desc">{s.description || categoryById[s.category_id]?.name}</span>
-                  <span className="category-price">From {formatCurrency(fromPriceByService[s.id])}</span>
+                  <span className="category-price">From {formatRate(fromPriceByService[s.id])}</span>
                 </div>
               )
             })}

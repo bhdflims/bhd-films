@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import Modal from '../../components/common/Modal'
-import { formatCurrency } from '../../utils/format'
+import { formatRate } from '../../utils/format'
 
 const EMPTY = { service_id: '', min_quantity: 100, max_quantity: '', rate: 0, is_active: true, display_order: 0, reason: '' }
 
@@ -116,7 +116,7 @@ export default function BulkPricing() {
                 <td>{serviceName(t.service_id)}</td>
                 <td>{t.min_quantity}</td>
                 <td>{t.max_quantity ?? '∞'}</td>
-                <td>{formatCurrency(t.rate)}</td>
+                <td>{formatRate(t.rate)}</td>
                 <td>
                   <span className={`chip ${t.is_active ? 'chip-success' : 'chip-danger'}`}>{t.is_active ? 'Active' : 'Inactive'}</span>
                 </td>

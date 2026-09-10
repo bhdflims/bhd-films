@@ -1,5 +1,5 @@
 import { getIcon } from '../../utils/iconMap'
-import { formatCurrency } from '../../utils/format'
+import { formatCurrency, formatRate } from '../../utils/format'
 import { platformLabel, targetLinkErrorMessage } from '../../utils/validators'
 
 // One card per selected/available service inside the category order screen.
@@ -74,7 +74,7 @@ export default function ServiceCalculatorCard({
           <div className="divider" />
           <div className="row-between" style={{ fontSize: 12.5 }}>
             <span className="text-dim">
-              {quantity || 0} × {formatCurrency(rate)}
+              {quantity || 0} × {formatRate(rate)}
             </span>
             <span style={{ fontWeight: 800, color: 'var(--gold-soft)' }}>{formatCurrency(total)}</span>
           </div>
