@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/icons/favicon-96.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+    <link rel="manifest" id="app-manifest" href="/manifest-admin.webmanifest" />
+    <link rel="apple-touch-icon" id="apple-touch-icon" href="/icons/apple-touch-icon-admin.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#0a0a12" />
+    <meta name="description" content="BHD Films - Admin panel" />
+    <!-- This file exists ONLY so that "Add to Home Screen" works correctly on
+         iOS for the admin panel. iOS Safari locks in the manifest/name/start
+         page for a home-screen icon from whatever was already in the HTML
+         BEFORE any JavaScript runs - it does not reliably notice when
+         ManifestSwitcher.jsx swaps those tags afterward. Serving a separate,
+         already-admin-branded HTML file for every /admin URL (see
+         vercel.json) means there is nothing to swap: the correct manifest,
+         icon and title are present from the very first byte, so an icon
+         saved from any /admin page reliably opens straight into the admin
+         panel instead of the customer app. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" id="apple-title" content="BHD Films Admin" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>BHD Films Admin</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
