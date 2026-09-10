@@ -8,6 +8,7 @@ import ProtectedRoute from './components/common/ProtectedRoute'
 import AdminRoute from './components/common/AdminRoute'
 import ManifestSwitcher from './components/common/ManifestSwitcher'
 import AdminHomeRedirect from './components/common/AdminHomeRedirect'
+import MaintenanceGate from './components/common/MaintenanceGate'
 
 import Home from './pages/customer/Home'
 import Services from './pages/customer/Services'
@@ -48,6 +49,7 @@ import SupportMessages from './pages/admin/SupportMessages'
 import Reports from './pages/admin/Reports'
 import AuditLog from './pages/admin/AuditLog'
 import AdminUsers from './pages/admin/AdminUsers'
+import MaintenanceMode from './pages/admin/MaintenanceMode'
 
 export default function App() {
   return (
@@ -56,6 +58,7 @@ export default function App() {
       <BrowserRouter>
         <ManifestSwitcher />
         <AdminHomeRedirect />
+        <MaintenanceGate>
         <Routes>
           {/* Customer app - bottom nav layout */}
           <Route element={<AppLayout />}>
@@ -188,10 +191,12 @@ export default function App() {
             <Route path="reports" element={<Reports />} />
             <Route path="audit-log" element={<AuditLog />} />
             <Route path="admins" element={<AdminUsers />} />
+            <Route path="maintenance-mode" element={<MaintenanceMode />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </MaintenanceGate>
       </BrowserRouter>
       </InstallPromptProvider>
     </AuthProvider>
