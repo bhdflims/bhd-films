@@ -322,6 +322,18 @@ create table public.payment_settings (
   updated_by uuid references auth.users(id)
 );
 
+-- Singleton row (id is always TRUE) holding site-wide maintenance mode.
+-- Readable by EVERYONE, including logged-out visitors, so the maintenance
+-- banner can show before login; only admin/super_admin can update it.
+create table public.site_settings (
+  id boolean primary key default true check (id),
+  maintenance_mode boolean not null default false,
+  maintenance_message_en text not null default 'Thank you for your support! We have taken our website under maintenance, we will be back shortly. Orders already placed will still be processed soon.',
+  maintenance_message_hi text not null default 'आपके सहयोग के लिए धन्यवाद! हमारी वेबसाइट अभी मेंटेनेंस में है, हम जल्द वापस आएंगे। जिन ऑर्डर की प्रोसेसिंग चल रही है उन्हें जल्द पूरा किया जाएगा।',
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
 -- One QR code picture per add-funds amount, fully admin-controlled.
 -- amount = a specific preset (e.g. 100, 500, 1000) shows that exact QR.
 -- amount = null is the fallback/default QR shown for a custom amount that
@@ -549,6 +561,7 @@ create trigger trg_fund_requests_updated before update on public.fund_requests f
 create trigger trg_refund_requests_updated before update on public.refund_requests for each row execute function public.set_updated_at();
 create trigger trg_support_tickets_updated before update on public.support_tickets for each row execute function public.set_updated_at();
 create trigger trg_payment_settings_updated before update on public.payment_settings for each row execute function public.set_updated_at();
+create trigger trg_site_settings_updated before update on public.site_settings for each row execute function public.set_updated_at();
 create trigger trg_payment_qr_codes_updated before update on public.payment_qr_codes for each row execute function public.set_updated_at();
 
 -- =====================================================================
@@ -731,6 +744,18 @@ $$;
 create trigger trg_payment_settings_audit
   after update on public.payment_settings
   for each row execute function public.log_payment_settings_audit();
+
+create or replace function public.log_site_settings_audit()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.write_audit_log('site_settings_changed','site_settings','main', to_jsonb(old), to_jsonb(new));
+  return new;
+end;
+$$;
+
+create trigger trg_site_settings_audit
+  after update on public.site_settings
+  for each row execute function public.log_site_settings_audit();
 
 create or replace function public.log_payment_qr_audit()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -2060,6 +2085,7 @@ alter table public.support_tickets enable row level security;
 alter table public.support_messages enable row level security;
 alter table public.notifications enable row level security;
 alter table public.payment_settings enable row level security;
+alter table public.site_settings enable row level security;
 alter table public.payment_qr_codes enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.push_subscriptions enable row level security;
@@ -2231,6 +2257,15 @@ create policy "payment_settings_select" on public.payment_settings
 create policy "payment_settings_update" on public.payment_settings
   for update using (public.has_permission('manage_payment_settings')) with check (public.has_permission('manage_payment_settings'));
 
+-- ---------------- site_settings ----------------
+-- select is open to EVERYONE (including anonymous/logged-out visitors) on
+-- purpose, so the maintenance banner can be checked before login.
+create policy "site_settings_select" on public.site_settings
+  for select using (true);
+
+create policy "site_settings_update" on public.site_settings
+  for update using (public.has_permission('manage_payment_settings')) with check (public.has_permission('manage_payment_settings'));
+
 -- ---------------- payment_qr_codes ----------------
 create policy "payment_qr_codes_select" on public.payment_qr_codes
   for select using (auth.role() = 'authenticated' or public.is_admin());
@@ -2261,6 +2296,7 @@ create policy "refund_requests_select" on public.refund_requests
 -- =====================================================================
 
 insert into public.payment_settings (id) values (true) on conflict (id) do nothing;
+insert into public.site_settings (id) values (true) on conflict (id) do nothing;
 
 -- =====================================================================
 -- END OF SCHEMA. Next: run supabase/storage.sql, then supabase/seed_admin.sql
