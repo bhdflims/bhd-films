@@ -15,6 +15,7 @@ export default function Refunds() {
   const [remark, setRemark] = useState('')
   const [deliveredQty, setDeliveredQty] = useState('')
   const [resolutionMethod, setResolutionMethod] = useState('wallet')
+  const [refundAmount, setRefundAmount] = useState('')
   const [receiptFile, setReceiptFile] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -40,6 +41,7 @@ export default function Refunds() {
     setRemark(action === 'approve' ? 'Refund has been added to your wallet.' : '')
     setDeliveredQty('')
     setResolutionMethod('wallet')
+    setRefundAmount(String(request.amount))
     setReceiptFile(null)
     setError('')
   }
@@ -68,6 +70,10 @@ export default function Refunds() {
         setError('Please attach a photo/screenshot as proof of the bank/UPI payment.')
         return
       }
+      if (!refundAmount || Number(refundAmount) <= 0) {
+        setError('Enter a valid refund amount.')
+        return
+      }
     }
 
     setBusy(true)
@@ -90,7 +96,8 @@ export default function Refunds() {
       p_remark: remark || null,
       p_resolution_method: actionModal.action === 'approve' ? resolutionMethod : null,
       p_receipt_path: receiptPath,
-      p_delivered_quantity: deliveredQty === '' ? null : Number(deliveredQty)
+      p_delivered_quantity: deliveredQty === '' ? null : Number(deliveredQty),
+      p_amount: actionModal.action === 'approve' ? Number(refundAmount) : null
     })
     setBusy(false)
     if (err) {
@@ -140,7 +147,14 @@ export default function Refunds() {
                   {r.profiles?.username || r.profiles?.email} · Order {r.orders?.order_code} · {formatDate(r.created_at)}
                 </div>
               </div>
-              <span style={{ fontWeight: 700 }}>{formatCurrency(r.amount)}</span>
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontWeight: 700 }}>
+                  {formatCurrency(r.status === 'approved' ? (r.approved_amount ?? r.amount) : r.amount)}
+                </span>
+                {r.status === 'approved' && r.approved_amount != null && r.approved_amount !== r.amount && (
+                  <div className="text-faint" style={{ fontSize: 10.5 }}>Requested {formatCurrency(r.amount)}</div>
+                )}
+              </div>
             </div>
             {r.reason && <p className="text-faint" style={{ fontSize: 11.5, marginTop: 6 }}>Reason: {r.reason}</p>}
             <div className="row-between" style={{ marginTop: 8 }}>
@@ -213,6 +227,19 @@ export default function Refunds() {
 
           {actionModal.action === 'approve' && (
             <div style={{ marginTop: 10, marginBottom: 10 }}>
+              <span className="field-label">Amount to Refund (₹)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={refundAmount}
+                onChange={(e) => setRefundAmount(e.target.value)}
+                placeholder="e.g. 200"
+              />
+              <p className="text-faint" style={{ fontSize: 11, marginTop: 4, marginBottom: 10 }}>
+                Defaults to what the customer requested ({formatCurrency(actionModal.request.amount)}) — edit this if GPay/PhonePe only went through partially, or you're refunding a different amount.
+              </p>
+
               <span className="field-label">Refund Method</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
@@ -234,13 +261,14 @@ export default function Refunds() {
               </div>
               {resolutionMethod === 'wallet' && (
                 <p className="text-faint" style={{ fontSize: 11, marginTop: 6 }}>
-                  {formatCurrency(actionModal.request.amount)} will be added straight to the customer's wallet.
+                  {formatCurrency(Number(refundAmount) || 0)} will be added straight to the customer's wallet.
                 </p>
               )}
               {resolutionMethod === 'bank' && (
                 <div style={{ marginTop: 8 }}>
                   <p className="text-faint" style={{ fontSize: 11, marginBottom: 6 }}>
-                    Pay {formatCurrency(actionModal.request.amount)} to the customer yourself via bank/UPI, then attach a photo/screenshot as proof below.
+                    Pay {formatCurrency(Number(refundAmount) || 0)} to the customer yourself via bank/UPI, then attach a photo/screenshot as proof below.
+                    This won't change their wallet balance (the money never sat there) — it'll just be logged in Wallet Transactions for your records.
                   </p>
                   <input type="file" accept="image/*" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} />
                 </div>
