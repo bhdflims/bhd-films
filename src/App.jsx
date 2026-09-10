@@ -23,6 +23,7 @@ import Support from './pages/customer/Support'
 import NewSupportTicket from './pages/customer/NewSupportTicket'
 import SupportTicketDetail from './pages/customer/SupportTicketDetail'
 import About from './pages/customer/About'
+import Terms from './pages/customer/Terms'
 import Login from './pages/customer/Login'
 import OrderSuccess from './pages/customer/OrderSuccess'
 
@@ -85,6 +86,7 @@ export default function App() {
               }
             />
             <Route path="/about" element={<About />} />
+            <Route path="/terms" element={<Terms />} />
             <Route
               path="/orders"
               element={

@@ -12,7 +12,8 @@ import {
   Check,
   X,
   BellRing,
-  Download
+  Download,
+  ScrollText
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -26,7 +27,8 @@ const MENU = [
   { to: '/fund-history', label: 'Fund History', icon: History },
   { to: '/orders', label: 'My Orders', icon: ReceiptText },
   { to: '/support', label: 'Support', icon: LifeBuoy },
-  { to: '/about', label: 'About Us', icon: Info }
+  { to: '/about', label: 'About Us', icon: Info },
+  { to: '/terms', label: 'Terms & Conditions', icon: ScrollText }
 ]
 
 export default function Profile() {
