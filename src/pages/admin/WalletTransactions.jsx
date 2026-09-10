@@ -22,6 +22,13 @@ export default function WalletTransactions() {
       setLoading(false)
     }
     load()
+    const channel = supabase
+      .channel('admin-wallet-transactions-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_transactions' }, () => load())
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   const visible = typeFilter === 'all' ? rows : rows.filter((r) => r.type === typeFilter)

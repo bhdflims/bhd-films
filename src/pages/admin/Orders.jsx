@@ -33,6 +33,13 @@ export default function Orders() {
 
   useEffect(() => {
     load()
+    const channel = supabase
+      .channel('admin-orders-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => load())
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   async function handleStatusChange(order, status) {

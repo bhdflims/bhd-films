@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { ReceiptText, ChevronDown, ChevronUp, Undo2, Eye } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -20,6 +20,7 @@ const REFUND_ELIGIBLE_STATUSES = ['processing', 'completed']
 
 export default function OrderHistory() {
   const { user } = useAuth()
+  const instanceId = useId()
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState([])
   const [refundsByOrder, setRefundsByOrder] = useState({})
@@ -59,6 +60,22 @@ export default function OrderHistory() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
+
+  // Keep this screen live: if an admin updates an order's status or
+  // approves/rejects a refund while this page is open, it should update
+  // on its own instead of needing a manual refresh.
+  useEffect(() => {
+    if (!user) return undefined
+    const channel = supabase
+      .channel(`order-history-${user.id}-${instanceId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `user_id=eq.${user.id}` }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'refund_requests', filter: `user_id=eq.${user.id}` }, () => load())
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, instanceId])
 
   function openRefundModal(order) {
     setRefundModal(order)

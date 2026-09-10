@@ -31,6 +31,13 @@ export default function AdminFundRequests() {
 
   useEffect(() => {
     load()
+    const channel = supabase
+      .channel('admin-fund-requests-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_requests' }, () => load())
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   function openAction(request, action) {

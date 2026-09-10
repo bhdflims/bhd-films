@@ -36,7 +36,7 @@ const NAV = [
   { to: '/admin/rate-control', label: 'Rate Control', icon: Percent, perm: 'manage_rates' },
   { to: '/admin/bulk-pricing', label: 'Bulk Pricing', icon: Layers, perm: 'manage_bulk_pricing' },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingBag, perm: 'manage_orders', unreadKey: 'orders' },
-  { to: '/admin/fund-requests', label: 'Fund Requests', icon: Banknote, perm: 'manage_fund_requests' },
+  { to: '/admin/fund-requests', label: 'Fund Requests', icon: Banknote, perm: 'manage_fund_requests', unreadKey: 'funds' },
   { to: '/admin/refunds', label: 'Refunds', icon: Undo2, perm: 'manage_refunds', unreadKey: 'refunds' },
   { to: '/admin/wallet-transactions', label: 'Wallet Transactions', icon: History, perm: 'manage_wallets' },
   { to: '/admin/payment-settings', label: 'Payment Settings', icon: QrCode, perm: 'manage_payment_settings' },
@@ -55,6 +55,7 @@ export default function AdminLayout() {
   const [unreadSupport, setUnreadSupport] = useState(0)
   const [unreadOrders, setUnreadOrders] = useState(0)
   const [unreadRefunds, setUnreadRefunds] = useState(0)
+  const [unreadFunds, setUnreadFunds] = useState(0)
   const { supported: pushSupported, subscribed: pushSubscribed, subscribing: pushSubscribing, subscribe: pushSubscribe } = usePushNotifications()
 
   useEffect(() => {
@@ -115,6 +116,27 @@ export default function AdminLayout() {
     }
   }, [])
 
+  // New fund-request badge — counts requests still "pending" or
+  // "under_review" (the two states that need admin action), same idea
+  // as the Orders/Refunds badges above.
+  useEffect(() => {
+    async function loadPendingFunds() {
+      const { count } = await supabase
+        .from('fund_requests')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['pending', 'under_review'])
+      setUnreadFunds(count || 0)
+    }
+    loadPendingFunds()
+    const channel = supabase
+      .channel('admin-fund-requests-unread-badge')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_requests' }, loadPendingFunds)
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   function allowed(perm) {
     if (!perm) return true
     if (adminRole === 'super_admin') return true
@@ -126,7 +148,7 @@ export default function AdminLayout() {
 
   const visibleNav = NAV.filter((item) => allowed(item.perm))
 
-  const badgeCounts = { support: unreadSupport, orders: unreadOrders, refunds: unreadRefunds }
+  const badgeCounts = { support: unreadSupport, orders: unreadOrders, refunds: unreadRefunds, funds: unreadFunds }
 
   const linkList = (
     <>

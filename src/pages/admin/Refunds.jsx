@@ -35,6 +35,13 @@ export default function Refunds() {
 
   useEffect(() => {
     load()
+    const channel = supabase
+      .channel('admin-refunds-list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'refund_requests' }, () => load())
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   function openAction(request, action) {

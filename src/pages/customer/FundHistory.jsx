@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { History } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -22,6 +22,7 @@ const TYPE_CHIP = {
 
 export default function FundHistory() {
   const { user } = useAuth()
+  const instanceId = useId()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState([])
 
@@ -42,6 +43,27 @@ export default function FundHistory() {
       mounted = false
     }
   }, [user])
+
+  // New transactions (fund added, order payment, refund, adjustment)
+  // appear here the instant they happen, without needing a refresh.
+  useEffect(() => {
+    if (!user) return undefined
+    const channel = supabase
+      .channel(`fund-history-${user.id}-${instanceId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_transactions', filter: `user_id=eq.${user.id}` }, () => {
+        supabase
+          .from('wallet_transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .then(({ data }) => setRows(data || []))
+      })
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, instanceId])
 
   if (loading) return <Loader />
 

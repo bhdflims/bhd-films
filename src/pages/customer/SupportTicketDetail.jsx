@@ -45,7 +45,15 @@ export default function SupportTicketDetail() {
     setMessages(msgs || [])
     setLoading(false)
 
-    await supabase.rpc('mark_ticket_read', { p_ticket_id: id })
+    // Only ping the server when there's actually something unread to
+    // clear. Calling this unconditionally on every load used to create a
+    // feedback loop: mark-as-read updates the ticket row -> realtime
+    // fires because the row changed -> that re-triggers load() -> which
+    // marks it as read again -> forever, hammering the database the
+    // whole time this screen stays open.
+    if (t.has_unread_admin_reply) {
+      await supabase.rpc('mark_ticket_read', { p_ticket_id: id })
+    }
   }
 
   useEffect(() => {

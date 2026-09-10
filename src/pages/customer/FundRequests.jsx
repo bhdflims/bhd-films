@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { FileClock, Upload } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -17,6 +17,7 @@ const STATUS_CHIP = {
 
 export default function FundRequests() {
   const { user } = useAuth()
+  const instanceId = useId()
   const [loading, setLoading] = useState(true)
   const [requests, setRequests] = useState([])
   const [reuploadingId, setReuploadingId] = useState(null)
@@ -39,6 +40,20 @@ export default function FundRequests() {
     if (user) load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
+
+  // Live-update the moment admin approves/rejects/asks for a re-upload,
+  // instead of the customer needing to leave and come back to this page.
+  useEffect(() => {
+    if (!user) return undefined
+    const channel = supabase
+      .channel(`fund-requests-${user.id}-${instanceId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_requests', filter: `user_id=eq.${user.id}` }, () => load())
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, instanceId])
 
   async function handleReupload(req) {
     setError('')
