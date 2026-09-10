@@ -5,6 +5,8 @@ import { supabase } from '../../lib/supabase'
 import CategoryCard from '../../components/services/CategoryCard'
 import OfferCarousel from '../../components/common/OfferCarousel'
 import CouponUnbox from '../../components/common/CouponUnbox'
+import FollowInstagramCard from '../../components/common/FollowInstagramCard'
+import StatsSection from '../../components/common/StatsSection'
 import Loader from '../../components/common/Loader'
 import EmptyState from '../../components/common/EmptyState'
 import { getIcon } from '../../utils/iconMap'
@@ -207,6 +209,12 @@ export default function Home() {
           </div>
         </>
       )}
+
+      <div style={{ margin: '20px 0' }}>
+        <FollowInstagramCard />
+      </div>
+
+      <StatsSection />
     </div>
   )
 }

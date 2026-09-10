@@ -566,6 +566,105 @@ textarea::placeholder {
   max-width: 78%;
 }
 
+/* ------------------------- Follow Instagram card ------------------------- */
+
+.follow-ig-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 13px 14px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(120deg, #4a1d6b 0%, #b23a72 55%, #d97a3f 100%);
+  text-decoration: none;
+}
+
+.follow-ig-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.follow-ig-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.follow-ig-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.follow-ig-desc {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.follow-ig-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 6px 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ------------------------- Home statistics ------------------------- */
+
+.home-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.home-stat-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 4px;
+  text-align: center;
+}
+
+.home-stat-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--surface-strong);
+  color: var(--gold-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 6px;
+}
+
+.home-stat-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gold-soft);
+}
+
+.home-stat-label {
+  font-size: 9.5px;
+  color: var(--text-faint);
+  margin-top: 3px;
+  line-height: 1.25;
+}
+
 /* ------------------------- Misc ------------------------- */
 
 .row-between {
