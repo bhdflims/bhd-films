@@ -1,13 +1,15 @@
 import { supabase } from '../lib/supabase'
+import { compressImage } from './imageCompress'
 
 // Uploads a screenshot/proof file to the private support-attachments
 // bucket, scoped to the uploader's own folder (same pattern as receipts).
 // Returns the storage path to save on the ticket/message row.
 export async function uploadSupportAttachment(userId, file) {
   if (!file) return null
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const uploadFile = await compressImage(file)
+  const safeName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
   const path = `${userId}/${Date.now()}-${safeName}`
-  const { error } = await supabase.storage.from('support-attachments').upload(path, file)
+  const { error } = await supabase.storage.from('support-attachments').upload(path, uploadFile)
   if (error) throw error
   return path
 }

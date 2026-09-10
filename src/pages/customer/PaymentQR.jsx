@@ -4,6 +4,7 @@ import { QrCode, Upload, CheckCircle2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { formatCurrency } from '../../utils/format'
+import { compressImage } from '../../utils/imageCompress'
 
 export default function PaymentQR() {
   const location = useLocation()
@@ -69,8 +70,9 @@ export default function PaymentQR() {
     }
     setUploading(true)
     try {
-      const path = `${user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const { error: uploadError } = await supabase.storage.from('receipts').upload(path, file)
+      const uploadFile = await compressImage(file)
+      const path = `${user.id}/${Date.now()}-${uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const { error: uploadError } = await supabase.storage.from('receipts').upload(path, uploadFile)
       if (uploadError) throw uploadError
 
       const { error: rpcError } = await supabase.rpc('create_fund_request', {

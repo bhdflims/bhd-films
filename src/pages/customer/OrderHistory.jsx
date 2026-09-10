@@ -6,6 +6,7 @@ import Loader from '../../components/common/Loader'
 import EmptyState from '../../components/common/EmptyState'
 import Modal from '../../components/common/Modal'
 import { formatCurrency, formatRate, formatDate } from '../../utils/format'
+import { compressImage } from '../../utils/imageCompress'
 
 const STATUS_CHIP = {
   received: 'chip-info',
@@ -73,8 +74,9 @@ export default function OrderHistory() {
 
     let proofPath = null
     if (refundProofFile) {
-      const path = `${user.id}/${Date.now()}-${refundProofFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const { error: uploadError } = await supabase.storage.from('refund-customer-proof').upload(path, refundProofFile)
+      const uploadFile = await compressImage(refundProofFile)
+      const path = `${user.id}/${Date.now()}-${uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const { error: uploadError } = await supabase.storage.from('refund-customer-proof').upload(path, uploadFile)
       if (uploadError) {
         setRefundBusy(false)
         setRefundError(uploadError.message || 'Could not upload your photo.')

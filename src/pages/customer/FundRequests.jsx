@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import Loader from '../../components/common/Loader'
 import EmptyState from '../../components/common/EmptyState'
 import { formatCurrency, formatDate } from '../../utils/format'
+import { compressImage } from '../../utils/imageCompress'
 
 const STATUS_CHIP = {
   pending: 'chip-info',
@@ -47,8 +48,9 @@ export default function FundRequests() {
     }
     setBusy(true)
     try {
-      const path = `${user.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const { error: uploadError } = await supabase.storage.from('receipts').upload(path, file)
+      const uploadFile = await compressImage(file)
+      const path = `${user.id}/${Date.now()}-${uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const { error: uploadError } = await supabase.storage.from('receipts').upload(path, uploadFile)
       if (uploadError) throw uploadError
 
       const { error: rpcError } = await supabase.rpc('resubmit_fund_request', {

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import Modal from '../../components/common/Modal'
 import { formatCurrency, formatDate } from '../../utils/format'
+import { compressImage } from '../../utils/imageCompress'
 
 const STATUSES = ['pending', 'approved', 'rejected']
 
@@ -80,8 +81,9 @@ export default function Refunds() {
     let receiptPath = null
 
     if (actionModal.action === 'approve' && resolutionMethod === 'bank' && receiptFile) {
-      const path = `${actionModal.request.user_id}/${Date.now()}-${receiptFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-      const { error: uploadError } = await supabase.storage.from('refund-receipts').upload(path, receiptFile)
+      const uploadFile = await compressImage(receiptFile)
+      const path = `${actionModal.request.user_id}/${Date.now()}-${uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+      const { error: uploadError } = await supabase.storage.from('refund-receipts').upload(path, uploadFile)
       if (uploadError) {
         setBusy(false)
         setError(uploadError.message)
