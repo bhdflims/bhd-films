@@ -23,7 +23,8 @@ import {
   Clapperboard,
   BellRing,
   Undo2,
-  X
+  X,
+  AlertTriangle
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
@@ -40,6 +41,7 @@ const NAV = [
   { to: '/admin/refunds', label: 'Refunds', icon: Undo2, perm: 'manage_refunds', unreadKey: 'refunds' },
   { to: '/admin/wallet-transactions', label: 'Wallet Transactions', icon: History, perm: 'manage_wallets' },
   { to: '/admin/payment-settings', label: 'Payment Settings', icon: QrCode, perm: 'manage_payment_settings' },
+  { to: '/admin/maintenance-mode', label: 'Maintenance Mode', icon: AlertTriangle, perm: 'manage_payment_settings' },
   { to: '/admin/offers', label: 'Offers', icon: Gift, perm: 'manage_offers' },
   { to: '/admin/coupons', label: 'Coupons', icon: Tag, perm: 'manage_coupons' },
   { to: '/admin/support', label: 'Support Tickets', icon: MessageSquare, perm: 'manage_support', unreadKey: 'support' },
