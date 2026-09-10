@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Menu,
   X,
+  ChevronLeft,
   LayoutGrid,
   Wallet,
   PlusCircle,
@@ -33,25 +34,59 @@ const DRAWER_LINKS = [
   { to: '/about', label: 'About Us', icon: Info }
 ]
 
+// The 5 bottom-nav destinations - the only places where "hamburger menu"
+// (rather than "go back") is the right icon, since there's nowhere more
+// shallow to go back to; you just tap another tab instead.
+const ROOT_TAB_PATHS = ['/', '/offers', '/orders', '/wallet', '/profile']
+
 export default function TopHeader() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { isLoggedIn, profile, signOut } = useAuth()
   const { wallet } = useWallet()
   const { canOfferInstall, installed, promptInstall } = useInstallPrompt()
   const { supported: pushSupported, subscribed, subscribing, subscribe } = usePushNotifications()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
+  // Every other screen (Add Funds, Fund Requests/History, a category's
+  // order page, Support, About, Terms, a profile edit...) was only ever
+  // reachable through the hamburger drawer or a button elsewhere in the
+  // app - once there, there was no way back except the phone's own back
+  // gesture (easy to miss, and on iOS standalone PWA mode there often
+  // isn't one at all), so people got stuck or accidentally backed out of
+  // the whole app. Show a real back arrow there instead.
+  const isRootTab = ROOT_TAB_PATHS.includes(location.pathname)
+
   function go(to) {
     setDrawerOpen(false)
     navigate(to)
   }
 
+  function handleBack() {
+    // location.key is 'default' only when this page was the very first
+    // thing loaded in this tab/PWA session (typed URL, bookmark, deep
+    // link) - there's no in-app history to go back to, so send them
+    // somewhere real (Home) instead of navigate(-1) taking them out of
+    // the app entirely.
+    if (location.key && location.key !== 'default') {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
+
   return (
     <>
       <header className="top-header">
-        <button className="icon-btn" onClick={() => setDrawerOpen(true)} aria-label="Menu">
-          <Menu size={19} />
-        </button>
+        {isRootTab ? (
+          <button className="icon-btn" onClick={() => setDrawerOpen(true)} aria-label="Menu">
+            <Menu size={19} />
+          </button>
+        ) : (
+          <button className="icon-btn" onClick={handleBack} aria-label="Back">
+            <ChevronLeft size={21} />
+          </button>
+        )}
 
         <div className="brand-wordmark" onClick={() => navigate('/')} role="button" tabIndex={0}>
           BHD <span className="text-gold">FILMS</span>

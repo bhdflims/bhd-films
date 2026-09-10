@@ -25,6 +25,7 @@ create table public.profiles (
   email text,
   phone text,
   account_status text not null default 'active' check (account_status in ('active','suspended')),
+  is_test_account boolean not null default false, -- flip this on for an account you use to test features. Orders/wallet activity from it are excluded from Dashboard and Reports totals.
   created_at timestamptz not null default now(),
   last_activity_at timestamptz not null default now()
 );
@@ -174,6 +175,7 @@ create table public.refund_requests (
   order_id uuid not null references public.orders(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
   amount numeric(12,2) not null,
+  approved_amount numeric(12,2), -- actual amount refunded, may differ from the customer's original ask (e.g. a partial GPay/PhonePe payout)
   ordered_quantity int,
   delivered_quantity int,
   reason text,
@@ -857,6 +859,46 @@ $$;
 
 grant execute on function public.resubmit_fund_request(uuid, text) to authenticated;
 
+-- Push-notifies a single customer (as opposed to notify_admins() below,
+-- which pushes every admin). Uses the send-push Edge Function with
+-- audience='user' so only that one person's device(s) get it. Wrapped in
+-- its own exception handler so a push hiccup (bad key, function down,
+-- pg_net not enabled) can NEVER block the real action (approving a fund
+-- request, updating an order, replying to a ticket, etc.) from completing
+-- and from writing its normal in-app notification row.
+--
+-- IMPORTANT: replace YOUR-SERVICE-ROLE-KEY below with the SAME
+-- service_role key you already used for notify_admins() (Migration 007) -
+-- Project Settings -> API -> Project API keys -> service_role. If you
+-- never set that up, admin push notifications aren't live either yet;
+-- this is safe to run regardless (it just won't deliver pushes until a
+-- real key is in place - in-app notifications still work either way).
+create or replace function public.notify_user(p_user_id uuid, p_title text, p_body text, p_url text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform net.http_post(
+    url := 'https://zmopoujgltbiegrarvkp.supabase.co/functions/v1/send-push',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer YOUR-SERVICE-ROLE-KEY'
+    ),
+    body := jsonb_build_object(
+      'title', p_title,
+      'body', p_body,
+      'url', p_url,
+      'audience', 'user',
+      'userId', p_user_id
+    )
+  );
+exception when others then
+  null;
+end;
+$$;
+
 -- Admin approves / rejects / requests re-upload. This is the ONLY way
 -- a fund request status can ever change, and the ONLY way wallet credit
 -- from a fund request can happen. Row is locked (for update) so two
@@ -909,6 +951,7 @@ begin
 
     insert into public.notifications(user_id, title, message, type, related_id)
     values (v_fr.user_id, 'Funds Approved', v_final_remark, 'fund_request', v_fr.id);
+    perform public.notify_user(v_fr.user_id, 'Funds Approved 💰', v_final_remark, '/fund-history');
 
     perform public.write_audit_log('fund_approved','fund_request', v_fr.id::text,
       jsonb_build_object('status', v_fr.status), jsonb_build_object('status','approved','amount', v_fr.amount), v_final_remark);
@@ -921,6 +964,7 @@ begin
 
     insert into public.notifications(user_id, title, message, type, related_id)
     values (v_fr.user_id, 'Fund Request Rejected', v_final_remark, 'fund_request', v_fr.id);
+    perform public.notify_user(v_fr.user_id, 'Fund Request Rejected', v_final_remark, '/fund-requests');
 
     perform public.write_audit_log('fund_rejected','fund_request', v_fr.id::text,
       jsonb_build_object('status', v_fr.status), jsonb_build_object('status','rejected'), v_final_remark);
@@ -933,6 +977,7 @@ begin
 
     insert into public.notifications(user_id, title, message, type, related_id)
     values (v_fr.user_id, 'Re-upload Required', v_final_remark, 'fund_request', v_fr.id);
+    perform public.notify_user(v_fr.user_id, 'Re-upload Required', v_final_remark, '/fund-requests');
 
     perform public.write_audit_log('fund_reupload_requested','fund_request', v_fr.id::text,
       jsonb_build_object('status', v_fr.status), jsonb_build_object('status','reupload_required'), v_final_remark);
@@ -994,17 +1039,41 @@ $$;
 
 grant execute on function public.create_refund_request(uuid, text, text) to authenticated;
 
+-- When an order that used a coupon is cancelled/refunded, that coupon
+-- redemption is undone too - as far as usage limits are concerned, it's
+-- as if that order never happened. Safe to call more than once for the
+-- same order (does nothing if the redemption is already gone).
+create or replace function public.release_coupon_redemption_for_order(p_order_id uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_redemption public.coupon_redemptions%rowtype;
+begin
+  select * into v_redemption from public.coupon_redemptions where order_id = p_order_id limit 1;
+  if v_redemption.id is not null then
+    delete from public.coupon_redemptions where id = v_redemption.id;
+    update public.coupons set times_used = greatest(times_used - 1, 0) where id = v_redemption.coupon_id;
+  end if;
+end;
+$$;
+
 -- Admin approves (wallet or bank/UPI) or rejects a refund request.
 -- Wallet approvals credit the wallet instantly. Bank/UPI approvals do
--- NOT touch the wallet - the admin has paid the customer directly and
--- just needs to attach proof (receipt_path) as evidence.
+-- Wallet method credits the wallet for the actual amount (which the admin
+-- can edit down from the customer's original ask - useful when a
+-- GPay/PhonePe payout only partially went through). Bank/UPI method does
+-- NOT change the spendable wallet balance - the admin has paid the
+-- customer directly - but still writes a before=after ledger row so every
+-- refund (wallet or bank) shows up together in Wallet Transactions for
+-- record-keeping, with proof (receipt_path) as evidence.
 create or replace function public.admin_review_refund_request(
   p_refund_request_id uuid,
   p_action text,
   p_remark text default null,
   p_resolution_method text default null,
   p_receipt_path text default null,
-  p_delivered_quantity int default null
+  p_delivered_quantity int default null,
+  p_amount numeric default null
 )
 returns json
 language plpgsql security definer set search_path = public as $$
@@ -1015,6 +1084,7 @@ declare
   v_before numeric;
   v_after numeric;
   v_final_remark text;
+  v_final_amount numeric;
 begin
   if not public.has_permission('manage_refunds') then
     raise exception 'Not authorized.';
@@ -1039,13 +1109,18 @@ begin
       raise exception 'Upload proof of payment before marking this as paid via bank/UPI.';
     end if;
 
+    v_final_amount := coalesce(p_amount, v_rr.amount);
+    if v_final_amount is null or v_final_amount <= 0 then
+      raise exception 'Enter a valid refund amount.';
+    end if;
+
     if p_resolution_method = 'wallet' then
       select * into v_wallet from public.wallets where user_id = v_rr.user_id for update;
       if v_wallet is null then
         raise exception 'Wallet not found for this customer.';
       end if;
       v_before := v_wallet.available_fund;
-      v_after := v_before + v_rr.amount;
+      v_after := v_before + v_final_amount;
       v_final_remark := coalesce(nullif(trim(p_remark), ''), 'Refund has been added to your wallet.');
 
       update public.wallets
@@ -1053,26 +1128,37 @@ begin
       where id = v_wallet.id;
 
       insert into public.wallet_transactions (wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id, created_by_admin_id)
-      values (v_wallet.id, v_rr.user_id, 'refund', v_rr.amount, v_before, v_after, 'completed', v_final_remark, v_rr.order_id, v_admin);
+      values (v_wallet.id, v_rr.user_id, 'refund', v_final_amount, v_before, v_after, 'completed', v_final_remark, v_rr.order_id, v_admin);
     else
+      select * into v_wallet from public.wallets where user_id = v_rr.user_id for update;
       v_final_remark := coalesce(nullif(trim(p_remark), ''), 'Refund has been paid to your bank/UPI. See receipt for proof.');
+
+      if v_wallet is not null then
+        insert into public.wallet_transactions (wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id, created_by_admin_id)
+        values (v_wallet.id, v_rr.user_id, 'refund', v_final_amount, v_wallet.available_fund, v_wallet.available_fund, 'completed',
+          'Paid via bank/UPI directly - record only, wallet balance unchanged. ' || v_final_remark, v_rr.order_id, v_admin);
+      end if;
     end if;
 
     update public.refund_requests
     set status = 'approved', resolution_method = p_resolution_method, receipt_path = p_receipt_path,
         delivered_quantity = p_delivered_quantity, admin_remark = v_final_remark,
+        approved_amount = v_final_amount,
         reviewed_by = v_admin, reviewed_at = now(), updated_at = now()
     where id = v_rr.id;
 
     update public.orders set status = 'refunded', updated_at = now() where id = v_rr.order_id;
+    perform public.release_coupon_redemption_for_order(v_rr.order_id);
 
     insert into public.notifications (user_id, title, message, type, related_id)
     values (v_rr.user_id, 'Refund Approved',
-      v_final_remark || ' Amount: ' || to_char(v_rr.amount, 'FM999999990'), 'refund_request', v_rr.id);
+      v_final_remark || ' Amount: ' || to_char(v_final_amount, 'FM999999990'), 'refund_request', v_rr.id);
+    perform public.notify_user(v_rr.user_id, 'Refund Approved 💸',
+      v_final_remark || ' Amount: ₹' || to_char(v_final_amount, 'FM999999990'), '/orders');
 
     perform public.write_audit_log('refund_approved', 'refund_request', v_rr.id::text,
       jsonb_build_object('status', v_rr.status),
-      jsonb_build_object('status', 'approved', 'method', p_resolution_method, 'amount', v_rr.amount),
+      jsonb_build_object('status', 'approved', 'method', p_resolution_method, 'amount', v_final_amount),
       v_final_remark);
 
   else -- reject
@@ -1084,6 +1170,7 @@ begin
 
     insert into public.notifications (user_id, title, message, type, related_id)
     values (v_rr.user_id, 'Refund Request Rejected', v_final_remark, 'refund_request', v_rr.id);
+    perform public.notify_user(v_rr.user_id, 'Refund Request Rejected', v_final_remark, '/orders');
 
     perform public.write_audit_log('refund_rejected', 'refund_request', v_rr.id::text,
       jsonb_build_object('status', v_rr.status), jsonb_build_object('status', 'rejected'), v_final_remark);
@@ -1093,7 +1180,7 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_review_refund_request(uuid, text, text, text, text, int) to authenticated;
+grant execute on function public.admin_review_refund_request(uuid, text, text, text, text, int, numeric) to authenticated;
 
 -- Optional: push-notify admins on a new refund request (see Migration
 -- 007 / notify_admins()). Safe even if that was never set up.
@@ -1121,6 +1208,65 @@ drop trigger if exists trg_refund_requests_notify_admin on public.refund_request
 create trigger trg_refund_requests_notify_admin
   after insert on public.refund_requests
   for each row execute function public.trg_notify_admin_new_refund();
+
+-- Optional: push-notify admins the moment a customer submits a new fund
+-- request (uploads a payment receipt to add money to their wallet), and
+-- again when they re-upload a corrected receipt after "Re-upload
+-- Required". Without this, a new fund request only showed up if an
+-- admin happened to open the Fund Requests page and refresh it - it
+-- never pushed to their phone the way new orders/refunds/support
+-- messages already did. Safe even if notify_admins() was never set up.
+create or replace function public.trg_notify_admin_new_fund_request()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  begin
+    perform public.notify_admins(
+      'New Fund Request 💰',
+      'Payment receipt submitted — ₹' || to_char(new.amount, 'FM999999990') || ' (' || new.request_code || ').',
+      '/admin/fund-requests'
+    );
+  exception when others then
+    null;
+  end;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_fund_requests_notify_admin on public.fund_requests;
+create trigger trg_fund_requests_notify_admin
+  after insert on public.fund_requests
+  for each row execute function public.trg_notify_admin_new_fund_request();
+
+create or replace function public.trg_notify_admin_fund_request_resubmit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.status = 'pending' and old.status = 'reupload_required' then
+    begin
+      perform public.notify_admins(
+        'Fund Request Re-uploaded 💰',
+        'Corrected receipt submitted — ₹' || to_char(new.amount, 'FM999999990') || ' (' || new.request_code || ').',
+        '/admin/fund-requests'
+      );
+    exception when others then
+      null;
+    end;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_fund_requests_notify_admin_resubmit on public.fund_requests;
+create trigger trg_fund_requests_notify_admin_resubmit
+  after update on public.fund_requests
+  for each row execute function public.trg_notify_admin_fund_request_resubmit();
 
 -- Read-only coupon preview used by the checkout screen before the
 -- customer pays. Records nothing; the real, final check happens again
@@ -1456,6 +1602,7 @@ begin
 
   insert into public.notifications(user_id, title, message, type)
   values (p_user_id, 'Wallet Updated', 'Your wallet balance was adjusted by an administrator. Reason: ' || p_reason, 'wallet');
+  perform public.notify_user(p_user_id, 'Wallet Updated', 'Your wallet balance was adjusted by an administrator. Reason: ' || p_reason, '/wallet');
 
   return json_build_object('previous_balance', v_before, 'new_balance', v_after);
 end;
@@ -1464,9 +1611,24 @@ $$;
 grant execute on function public.admin_adjust_wallet(uuid, text, numeric, text) to authenticated;
 
 -- Admin updates order status (Received / Processing / Completed / Cancelled / Refunded).
+-- Moving an order to cancelled/refunded from here auto-refunds the
+-- customer's wallet (this store takes payment manually, so "refund" just
+-- means crediting their in-app wallet balance back - no payment gateway
+-- involved). Guarded so it only fires once per order: skipped if the
+-- order was already cancelled/refunded before, or if a refund transaction
+-- already exists for it (e.g. approved separately via the Refunds page),
+-- so status and wallet balance can never drift apart.
 create or replace function public.admin_update_order_status(p_order_id uuid, p_status text)
 returns json
 language plpgsql security definer set search_path = public as $$
+declare
+  v_admin uuid := auth.uid();
+  v_order public.orders%rowtype;
+  v_wallet public.wallets%rowtype;
+  v_before numeric;
+  v_after numeric;
+  v_already_refunded boolean;
+  v_paid_amount numeric;
 begin
   if not public.has_permission('manage_orders') then
     raise exception 'Not authorized.';
@@ -1474,10 +1636,86 @@ begin
   if p_status not in ('received','processing','completed','cancelled','refunded') then
     raise exception 'Invalid status.';
   end if;
-  update public.orders set status = p_status, updated_at = now() where id = p_order_id;
-  if not found then
+
+  select * into v_order from public.orders where id = p_order_id for update;
+  if v_order is null then
     raise exception 'Order not found.';
   end if;
+
+  if p_status in ('cancelled','refunded') and v_order.status not in ('cancelled','refunded') then
+    select exists(
+      select 1 from public.wallet_transactions
+      where related_order_id = p_order_id and type = 'refund'
+    ) into v_already_refunded;
+
+    if not v_already_refunded then
+      -- Refund exactly what left the wallet at checkout (grand_total minus
+      -- any coupon discount), never the pre-discount grand_total - that
+      -- would hand the customer back the discount amount a second time.
+      v_paid_amount := v_order.grand_total - coalesce(v_order.discount_amount, 0);
+
+      select * into v_wallet from public.wallets where user_id = v_order.user_id for update;
+      if v_wallet is not null and v_paid_amount > 0 then
+        v_before := v_wallet.available_fund;
+        v_after := v_before + v_paid_amount;
+
+        update public.wallets
+        set available_fund = v_after, updated_at = now()
+        where id = v_wallet.id;
+
+        insert into public.wallet_transactions
+          (wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id, created_by_admin_id)
+        values
+          (v_wallet.id, v_order.user_id, 'refund', v_paid_amount, v_before, v_after, 'completed',
+           'Order ' || v_order.order_code || ' was cancelled - amount refunded to wallet.', p_order_id, v_admin);
+
+        insert into public.notifications (user_id, title, message, type, related_id)
+        values (
+          v_order.user_id,
+          'Order Cancelled - Refunded',
+          'Your order ' || v_order.order_code || ' was cancelled and ' || to_char(v_paid_amount, 'FM999999990.00') ||
+            ' has been refunded to your wallet.',
+          'order',
+          p_order_id
+        );
+        perform public.notify_user(v_order.user_id, 'Order Cancelled - Refunded',
+          'Your order ' || v_order.order_code || ' was cancelled and ₹' || to_char(v_paid_amount, 'FM999999990.00') ||
+            ' has been refunded to your wallet.', '/orders');
+
+        perform public.write_audit_log('order_cancelled_auto_refund', 'order', p_order_id::text,
+          jsonb_build_object('status', v_order.status),
+          jsonb_build_object('status', p_status, 'refund_amount', v_paid_amount),
+          'Order cancelled from Orders page - wallet auto-refunded.');
+      end if;
+
+      perform public.release_coupon_redemption_for_order(p_order_id);
+    end if;
+  end if;
+
+  -- Let the customer know their order moved forward, even when no money
+  -- changed hands. Before this, only cancelled/refunded ever notified the
+  -- customer - moving an order to "processing" or "completed" (the two
+  -- most common admin actions) updated the database silently, and the
+  -- customer would only find out by opening Order History themselves.
+  if p_status = 'processing' then
+    insert into public.notifications(user_id, title, message, type, related_id)
+    values (v_order.user_id, 'Order In Progress', 'Your order ' || v_order.order_code || ' is now being processed.', 'order', p_order_id);
+    perform public.notify_user(v_order.user_id, 'Order In Progress', 'Your order ' || v_order.order_code || ' is now being processed.', '/orders');
+  elsif p_status = 'completed' then
+    insert into public.notifications(user_id, title, message, type, related_id)
+    values (v_order.user_id, 'Order Completed 🎉', 'Your order ' || v_order.order_code || ' has been completed. Thank you!', 'order', p_order_id);
+    perform public.notify_user(v_order.user_id, 'Order Completed 🎉', 'Your order ' || v_order.order_code || ' has been completed. Thank you!', '/orders');
+  elsif p_status in ('cancelled','refunded') and v_already_refunded then
+    -- Refunded separately via the Refunds page already, so the detailed
+    -- refund notification already went out there - just confirm the order
+    -- itself is now marked this way too.
+    insert into public.notifications(user_id, title, message, type, related_id)
+    values (v_order.user_id, 'Order ' || initcap(p_status), 'Your order ' || v_order.order_code || ' has been marked as ' || p_status || '.', 'order', p_order_id);
+    perform public.notify_user(v_order.user_id, 'Order ' || initcap(p_status), 'Your order ' || v_order.order_code || ' has been marked as ' || p_status || '.', '/orders');
+  end if;
+
+  update public.orders set status = p_status, updated_at = now() where id = p_order_id;
+
   return json_build_object('status','ok');
 end;
 $$;
@@ -1610,6 +1848,12 @@ begin
       'support_reply',
       p_ticket_id
     );
+    perform public.notify_user(
+      v_ticket.user_id,
+      'New Support Reply 💬',
+      'You have received a new reply from Support on ticket ' || v_ticket.ticket_code || '.',
+      '/support/' || p_ticket_id::text
+    );
 
     return json_build_object('status', 'ok', 'as', 'admin');
 
@@ -1659,13 +1903,20 @@ begin
 
   if v_ticket.user_id = v_uid then
     update public.support_messages set is_read = true where ticket_id = p_ticket_id and sender_type = 'admin' and is_read = false;
-    update public.support_tickets set has_unread_admin_reply = false where id = p_ticket_id;
+    -- The "and has_unread_admin_reply = true" guard matters: without it,
+    -- this UPDATE runs (and broadcasts a realtime change event) every
+    -- single time this function is called, even when there was nothing
+    -- to clear. The customer's ticket screen re-loads on any realtime
+    -- change to this row and calls this function again on load - so an
+    -- unguarded UPDATE here used to create an infinite loop of reads/
+    -- writes for as long as that screen stayed open.
+    update public.support_tickets set has_unread_admin_reply = false where id = p_ticket_id and has_unread_admin_reply = true;
     update public.notifications set is_read = true where related_id = p_ticket_id and user_id = v_uid and is_read = false;
     return json_build_object('status', 'ok');
 
   elsif public.has_permission('manage_support') then
     update public.support_messages set is_read = true where ticket_id = p_ticket_id and sender_type = 'customer' and is_read = false;
-    update public.support_tickets set has_unread_customer_message = false where id = p_ticket_id;
+    update public.support_tickets set has_unread_customer_message = false where id = p_ticket_id and has_unread_customer_message = true;
     return json_build_object('status', 'ok');
 
   else

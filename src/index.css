@@ -893,7 +893,13 @@ textarea::placeholder {
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    padding: 12px 16px;
+    /* Unlike .top-header (customer app), this never accounted for the iOS
+       status bar/notch - so on the installed admin PWA the bar sat flush
+       against the very top of the screen, with its title and menu button
+       hidden underneath the status bar and un-tappable. env(safe-area-inset-top)
+       is 0 on any device without a notch/status-bar overlap, so this is a
+       no-op everywhere else. */
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px;
     background: var(--bg-elevated);
     border-bottom: 1px solid var(--border-soft);
     position: sticky;
