@@ -459,11 +459,12 @@ textarea::placeholder {
 
 .popular-add-btn {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 26px;
-  height: 26px;
-  border-radius: 9px;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   border: none;
   background: linear-gradient(135deg, var(--gold), var(--crimson));
   color: #170f08;
@@ -471,6 +472,7 @@ textarea::placeholder {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 /* ------------------------- Category grid ------------------------- */

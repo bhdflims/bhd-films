@@ -183,8 +183,17 @@ export default function Home() {
               const Icon = getIcon(categoryById[s.category_id]?.icon)
               return (
                 <div key={s.id} className="popular-card">
-                  <button className="popular-add-btn" onClick={() => goToPopular(s)} aria-label={`Add ${s.name}`}>
-                    <Plus size={14} />
+                  <button
+                    type="button"
+                    className="popular-add-btn"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      goToPopular(s)
+                    }}
+                    aria-label={`Add ${s.name}`}
+                  >
+                    <Plus size={16} />
                   </button>
                   <span className="popular-icon-wrap">
                     <Icon size={16} />
