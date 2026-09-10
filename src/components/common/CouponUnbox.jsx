@@ -137,7 +137,7 @@ export default function CouponUnbox({ coupons }) {
   return (
     <div>
       <div className="section-title" style={{ marginBottom: 8 }}>
-        <span>🎉 Festive Offers</span>
+        <span>🎁 Special Offers</span>
       </div>
       <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
         {coupons.map((c) => (
