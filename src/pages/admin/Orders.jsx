@@ -38,8 +38,9 @@ export default function Orders() {
   async function handleStatusChange(order, status) {
     const movesToRefundState = (status === 'cancelled' || status === 'refunded') && order.status !== 'cancelled' && order.status !== 'refunded'
     if (movesToRefundState) {
+      const paidAmount = order.grand_total - (order.discount_amount || 0)
       const ok = window.confirm(
-        `This will automatically refund ${formatCurrency(order.grand_total)} to the customer's wallet. Continue?`
+        `This will automatically refund ${formatCurrency(paidAmount)} to the customer's wallet (what they actually paid after any coupon discount). Continue?`
       )
       if (!ok) return
     }
