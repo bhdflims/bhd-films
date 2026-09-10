@@ -36,6 +36,13 @@ export default function Orders() {
   }, [])
 
   async function handleStatusChange(order, status) {
+    const movesToRefundState = (status === 'cancelled' || status === 'refunded') && order.status !== 'cancelled' && order.status !== 'refunded'
+    if (movesToRefundState) {
+      const ok = window.confirm(
+        `This will automatically refund ${formatCurrency(order.grand_total)} to the customer's wallet. Continue?`
+      )
+      if (!ok) return
+    }
     setUpdating(order.id)
     const { error } = await supabase.rpc('admin_update_order_status', { p_order_id: order.id, p_status: status })
     setUpdating(null)
