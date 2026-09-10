@@ -35,44 +35,53 @@ export default function Dashboard() {
       setLoading(true)
       const { from } = filter === 'all' ? { from: null } : getRange(filter)
 
-      const [customersRes, newCustomersRes, walletsRes, ordersRes, fundReqRes, recentOrdersRes, recentFundRes] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        from
-          ? supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', from)
-          : supabase.from('profiles').select('id', { count: 'exact', head: true }),
-        supabase.from('wallets').select('available_fund, total_fund_added, total_fund_used'),
-        from
-          ? supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', from)
-          : supabase.from('orders').select('id', { count: 'exact', head: true }),
-        supabase.from('fund_requests').select('status').then((r) => r),
-        supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(6),
-        supabase.from('fund_requests').select('*').order('created_at', { ascending: false }).limit(6)
+      const [testProfilesRes, profilesRes, walletsRes, ordersRes, fundReqRes, recentOrdersRes, recentFundRes] = await Promise.all([
+        supabase.from('profiles').select('id').eq('is_test_account', true),
+        supabase.from('profiles').select('id, created_at'),
+        supabase.from('wallets').select('user_id, available_fund, total_fund_added, total_fund_used'),
+        supabase.from('orders').select('id, user_id, created_at'),
+        supabase.from('fund_requests').select('user_id, status'),
+        supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(20),
+        supabase.from('fund_requests').select('*').order('created_at', { ascending: false }).limit(20)
       ])
 
-      const wallets = walletsRes.data || []
+      // Test accounts (flagged from a customer's admin detail page) never
+      // count toward these business numbers - their orders/wallet activity
+      // is filtered out here before anything is summed/counted.
+      const testIds = new Set((testProfilesRes.data || []).map((p) => p.id))
+      const isReal = (userId) => !testIds.has(userId)
+
+      const profiles = (profilesRes.data || []).filter((p) => isReal(p.id))
+      const totalCustomers = profiles.length
+      const newCustomers = from ? profiles.filter((p) => p.created_at >= from).length : totalCustomers
+
+      const wallets = (walletsRes.data || []).filter((w) => isReal(w.user_id))
       const totalBalance = wallets.reduce((s, w) => s + Number(w.available_fund), 0)
       const totalAdded = wallets.reduce((s, w) => s + Number(w.total_fund_added), 0)
       const totalUsed = wallets.reduce((s, w) => s + Number(w.total_fund_used), 0)
 
-      const fundStatuses = fundReqRes.data || []
+      const orders = (ordersRes.data || []).filter((o) => isReal(o.user_id))
+      const totalOrders = from ? orders.filter((o) => o.created_at >= from).length : orders.length
+
+      const fundStatuses = (fundReqRes.data || []).filter((r) => isReal(r.user_id))
       const pending = fundStatuses.filter((r) => ['pending', 'under_review', 'reupload_required'].includes(r.status)).length
       const approved = fundStatuses.filter((r) => r.status === 'approved').length
       const rejected = fundStatuses.filter((r) => r.status === 'rejected').length
 
       if (!mounted) return
       setStats({
-        totalCustomers: customersRes.count || 0,
-        newCustomers: newCustomersRes.count || 0,
+        totalCustomers,
+        newCustomers,
         totalBalance,
         totalAdded,
         totalUsed,
         pending,
         approved,
         rejected,
-        totalOrders: ordersRes.count || 0
+        totalOrders
       })
-      setRecentOrders(recentOrdersRes.data || [])
-      setRecentFundRequests(recentFundRes.data || [])
+      setRecentOrders((recentOrdersRes.data || []).filter((o) => isReal(o.user_id)).slice(0, 6))
+      setRecentFundRequests((recentFundRes.data || []).filter((r) => isReal(r.user_id)).slice(0, 6))
       setLoading(false)
     }
     load()

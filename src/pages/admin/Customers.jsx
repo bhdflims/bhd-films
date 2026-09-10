@@ -93,7 +93,12 @@ export default function Customers() {
               const w = walletByUser[p.id]
               return (
                 <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/admin/customers/${p.id}`)}>
-                  <td>@{p.username}</td>
+                  <td>
+                    @{p.username}
+                    {p.is_test_account && (
+                      <span className="chip chip-warning" style={{ marginLeft: 6, fontSize: 9, padding: '2px 6px' }}>TEST</span>
+                    )}
+                  </td>
                   <td>{p.full_name || '—'}</td>
                   <td>{p.email}</td>
                   <td>{formatDateShort(p.created_at)}</td>

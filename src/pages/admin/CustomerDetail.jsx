@@ -46,6 +46,11 @@ export default function CustomerDetail() {
     load()
   }
 
+  async function toggleTestAccount() {
+    await supabase.from('profiles').update({ is_test_account: !profile.is_test_account }).eq('id', id)
+    load()
+  }
+
   async function submitAdjustment() {
     setError('')
     if (!form.amount || Number(form.amount) < 0) {
@@ -90,9 +95,19 @@ export default function CustomerDetail() {
           <div className="text-faint" style={{ fontSize: 12 }}>@{profile.username} · {profile.email}</div>
           <div className="text-faint" style={{ fontSize: 11 }}>Joined {formatDate(profile.created_at)}</div>
         </div>
-        <span className={`chip ${profile.account_status === 'active' ? 'chip-success' : 'chip-danger'}`} style={{ cursor: 'pointer' }} onClick={toggleStatus}>
-          {profile.account_status}
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+          <span className={`chip ${profile.account_status === 'active' ? 'chip-success' : 'chip-danger'}`} style={{ cursor: 'pointer' }} onClick={toggleStatus}>
+            {profile.account_status}
+          </span>
+          <span
+            className={`chip ${profile.is_test_account ? 'chip-warning' : ''}`}
+            style={{ cursor: 'pointer', border: profile.is_test_account ? 'none' : '1px dashed var(--border)' }}
+            onClick={toggleTestAccount}
+            title="Test accounts are excluded from Dashboard and Reports totals"
+          >
+            {profile.is_test_account ? 'Test Account' : 'Mark as Test'}
+          </span>
+        </div>
       </div>
 
       <div className="stats-grid" style={{ marginBottom: 16 }}>

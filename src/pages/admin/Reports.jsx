@@ -31,11 +31,18 @@ export default function Reports() {
       if (range.from) fundQuery = fundQuery.gte('created_at', range.from)
       if (range.to) fundQuery = fundQuery.lte('created_at', range.to)
 
-      const [orderRes, fundRes] = await Promise.all([orderQuery, fundQuery])
+      const [testProfilesRes, orderRes, fundRes] = await Promise.all([
+        supabase.from('profiles').select('id').eq('is_test_account', true),
+        orderQuery,
+        fundQuery
+      ])
       if (!mounted) return
 
-      const orders = orderRes.data || []
-      const funds = fundRes.data || []
+      // Exclude any account flagged as a test account so testing never
+      // shows up as real revenue/funds in these reports.
+      const testIds = new Set((testProfilesRes.data || []).map((p) => p.id))
+      const orders = (orderRes.data || []).filter((o) => !testIds.has(o.user_id))
+      const funds = (fundRes.data || []).filter((f) => !testIds.has(f.user_id))
       setData({
         orderCount: orders.length,
         revenue: orders.reduce((s, o) => s + Number(o.grand_total), 0),
