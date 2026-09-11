@@ -53,6 +53,22 @@ export function timeAgo(dateString) {
   return formatDateShort(dateString)
 }
 
+// Turns a raw byte count (as stored in Supabase Storage's own metadata)
+// into something a non-technical admin can read at a glance, e.g.
+// "482 KB" or "1.3 GB". Used on the Storage Cleanup page.
+export function formatBytes(bytes) {
+  const value = Number(bytes) || 0
+  if (value < 1024) return `${value} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let size = value / 1024
+  let unitIndex = 0
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024
+    unitIndex += 1
+  }
+  return `${size < 10 ? size.toFixed(2) : size < 100 ? size.toFixed(1) : Math.round(size)} ${units[unitIndex]}`
+}
+
 export function initialsFromName(name) {
   if (!name) return 'BF'
   const parts = name.trim().split(/\s+/)

@@ -50,6 +50,7 @@ import Reports from './pages/admin/Reports'
 import AuditLog from './pages/admin/AuditLog'
 import AdminUsers from './pages/admin/AdminUsers'
 import MaintenanceMode from './pages/admin/MaintenanceMode'
+import StorageCleanup from './pages/admin/StorageCleanup'
 
 export default function App() {
   return (
@@ -192,6 +193,7 @@ export default function App() {
             <Route path="audit-log" element={<AdminRoute permission="view_audit_log"><AuditLog /></AdminRoute>} />
             <Route path="admins" element={<AdminRoute permission="manage_admins"><AdminUsers /></AdminRoute>} />
             <Route path="maintenance-mode" element={<AdminRoute permission="manage_payment_settings"><MaintenanceMode /></AdminRoute>} />
+            <Route path="storage-cleanup" element={<AdminRoute permission="manage_storage"><StorageCleanup /></AdminRoute>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

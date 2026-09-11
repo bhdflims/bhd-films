@@ -7,7 +7,7 @@ import Loader from './Loader'
 // v_restricted list inside has_permission() in Postgres (the REAL
 // enforcement) and the `restricted` array in AdminLayout.jsx's own
 // allowed() check, which decides what shows up in the sidebar.
-const ALWAYS_RESTRICTED = ['manage_wallets', 'manage_rates', 'manage_bulk_pricing', 'manage_payment_settings', 'manage_admins', 'manage_refunds']
+const ALWAYS_RESTRICTED = ['manage_wallets', 'manage_rates', 'manage_bulk_pricing', 'manage_payment_settings', 'manage_admins', 'manage_refunds', 'manage_storage']
 
 // Wraps every /admin/* page, optionally with a required `permission`
 // (see the `perm` field on each entry in AdminLayout.jsx's NAV array -

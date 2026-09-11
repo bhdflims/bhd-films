@@ -25,7 +25,8 @@ import {
   Undo2,
   X,
   AlertTriangle,
-  RefreshCw
+  RefreshCw,
+  HardDrive
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
@@ -44,6 +45,7 @@ const NAV = [
   { to: '/admin/wallet-transactions', label: 'Wallet Transactions', icon: History, perm: 'manage_wallets' },
   { to: '/admin/payment-settings', label: 'Payment Settings', icon: QrCode, perm: 'manage_payment_settings' },
   { to: '/admin/maintenance-mode', label: 'Maintenance Mode', icon: AlertTriangle, perm: 'manage_payment_settings' },
+  { to: '/admin/storage-cleanup', label: 'Storage Cleanup', icon: HardDrive, perm: 'manage_storage' },
   { to: '/admin/offers', label: 'Offers', icon: Gift, perm: 'manage_offers' },
   { to: '/admin/coupons', label: 'Coupons', icon: Tag, perm: 'manage_coupons' },
   { to: '/admin/support', label: 'Support Tickets', icon: MessageSquare, perm: 'manage_support', unreadKey: 'support' },
@@ -145,7 +147,7 @@ export default function AdminLayout() {
     if (!perm) return true
     if (adminRole === 'super_admin') return true
     if (adminRole === 'admin') return perm !== 'manage_admins'
-    const restricted = ['manage_wallets', 'manage_rates', 'manage_bulk_pricing', 'manage_payment_settings', 'manage_admins', 'manage_refunds']
+    const restricted = ['manage_wallets', 'manage_rates', 'manage_bulk_pricing', 'manage_payment_settings', 'manage_admins', 'manage_refunds', 'manage_storage']
     if (restricted.includes(perm)) return false
     return !!adminPermissions?.[perm]
   }
