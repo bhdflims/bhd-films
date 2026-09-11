@@ -426,21 +426,25 @@ export default function CategoryOrder() {
 
       {confirmOpen && (
         <Modal title="Confirm Your Order" onClose={() => (submitting ? null : setConfirmOpen(false))}>
-          <p className="text-dim" style={{ fontSize: 13, marginBottom: 14 }}>
+          <p className="text-dim" style={{ fontSize: 12.5, marginBottom: 10 }}>
             <strong className="text-gold">{formatCurrency(payableTotal)}</strong> will be deducted from your wallet right now
             for {lineItems.length} service{lineItems.length > 1 ? 's' : ''}. This cannot be undone once placed.
           </p>
 
-          <div className="surface-card" style={{ marginBottom: 14 }}>
-            {lineItems.map((item) => (
-              <div key={item.service.id} className="row-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                <span className="text-faint">
-                  {item.service.name}
-                  {!item.service.is_fixed_price && ` × ${item.quantity || 0}`}
-                </span>
-                <span>{formatCurrency(item.total)}</span>
-              </div>
-            ))}
+          <div className="surface-card" style={{ marginBottom: 10 }}>
+            {/* Scrolls on its own once there are a lot of line items, so a big
+                order can never be what pushes the buttons below the fold. */}
+            <div style={{ maxHeight: 130, overflowY: 'auto' }}>
+              {lineItems.map((item) => (
+                <div key={item.service.id} className="row-between" style={{ fontSize: 12, marginBottom: 6, alignItems: 'flex-start' }}>
+                  <span className="text-faint">
+                    {item.service.name}
+                    {!item.service.is_fixed_price && ` × ${item.quantity || 0}`}
+                  </span>
+                  <span style={{ flexShrink: 0 }}>{formatCurrency(item.total)}</span>
+                </div>
+              ))}
+            </div>
             <div className="divider" />
             <div className="row-between" style={{ fontWeight: 800, fontSize: 14 }}>
               <span>Total Payable</span>
@@ -449,14 +453,29 @@ export default function CategoryOrder() {
           </div>
 
           {wallet && (
-            <p className="text-faint" style={{ fontSize: 11.5, marginBottom: 14 }}>
+            <p className="text-faint" style={{ fontSize: 11, marginBottom: 10 }}>
               Wallet balance after this order: {formatCurrency(wallet.available_fund - payableTotal)}
             </p>
           )}
 
-          {submitError && <div className="field-error" style={{ marginBottom: 12 }}>{submitError}</div>}
+          {submitError && <div className="field-error" style={{ marginBottom: 10 }}>{submitError}</div>}
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          {/* Sticky to the bottom edge of the popup itself (not the page) so
+              on a small phone screen, with a tall order summary above, these
+              two buttons are always visible and tappable without needing to
+              scroll past them - they never get pushed off-screen. */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              position: 'sticky',
+              bottom: -18,
+              margin: '0 -16px -18px',
+              padding: '12px 16px calc(env(safe-area-inset-bottom, 0px) + 12px)',
+              background: 'var(--bg-elevated)',
+              borderTop: '1px solid var(--border-soft)'
+            }}
+          >
             <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmOpen(false)} disabled={submitting}>
               Cancel
             </button>

@@ -506,8 +506,14 @@ begin
   end if;
   case p_platform
     when 'instagram' then return p_url ~* '^https?://(www\.)?instagram\.com/.+';
-    when 'facebook' then return p_url ~* '^https?://(www\.)?(facebook|fb)\.com/.+';
-    when 'tiktok' then return p_url ~* '^https?://(www\.|vm\.|m\.)?tiktok\.com/.+';
+    -- fb.watch is Facebook's own share-link domain for video posts.
+    when 'facebook' then return p_url ~* '^https?://(www\.)?(facebook\.com|fb\.com|fb\.watch)/.+';
+    -- vm./vt. are TikTok's own short-share-link subdomains (what the
+    -- app's native "Share" button actually gives you) - must match the
+    -- client-side check in src/utils/validators.js exactly, or a link
+    -- that passes on-screen still gets rejected here when the order is
+    -- actually placed.
+    when 'tiktok' then return p_url ~* '^https?://(www\.|vm\.|vt\.|m\.)?tiktok\.com/.+';
     when 'youtube' then return p_url ~* '^https?://(www\.|m\.)?(youtube\.com|youtu\.be)/.+';
     when 'twitter' then return p_url ~* '^https?://(www\.)?(twitter\.com|x\.com)/.+';
     when 'telegram' then return p_url ~* '^https?://(www\.)?(t\.me|telegram\.me)/.+';
