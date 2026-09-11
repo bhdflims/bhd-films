@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Clapperboard, Chrome, Mail } from 'lucide-react'
+import { Chrome, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import Loader from '../../components/common/Loader'
 
@@ -81,20 +81,17 @@ export default function Login() {
   return (
     <div className="page-pad" style={{ display: 'flex', flexDirection: 'column', minHeight: '80dvh', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', marginBottom: 34 }}>
-        <div
+        <img
+          src="/icons/icon-192.png"
+          alt="BHD Films"
           style={{
             width: 64,
             height: 64,
             margin: '0 auto 16px',
             borderRadius: 18,
-            background: 'linear-gradient(135deg,var(--gold),var(--crimson))',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
+            display: 'block'
           }}
-        >
-          <Clapperboard size={30} color="#170f08" />
-        </div>
+        />
         <h1 style={{ fontSize: 22, margin: '0 0 6px' }}>Welcome to BHD Films</h1>
         <p className="text-dim" style={{ fontSize: 13, margin: 0 }}>
           Sign in to manage your wallet, place orders and track everything in one place.
