@@ -824,6 +824,9 @@ textarea::placeholder {
   white-space: nowrap;
 }
 
+/* Base "bottom sheet" look - used as-is by the hamburger Menu drawer
+   (TopHeader) and the admin mobile sidebar drawer (AdminLayout), which
+   are meant to slide up from the bottom on phones. */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -851,6 +854,23 @@ textarea::placeholder {
 
 @media (min-width: 640px) {
   .modal-sheet { border-radius: 22px; max-height: 85vh; }
+}
+
+/* Used by the shared <Modal> component (confirm dialogs, admin
+   add/edit forms, filters) - these read as popups/dialogs rather than
+   a slide-up menu, so - per your request - they're centered in the
+   middle of the screen on every device size, not anchored to the
+   bottom. Combined with <Modal> now portaling to <body> (see
+   Modal.jsx), this is also what fixes the Confirm Order popup's
+   buttons rendering underneath the bottom nav bar. */
+.modal-backdrop--dialog {
+  align-items: center;
+  padding: 20px;
+}
+
+.modal-sheet--dialog {
+  border-radius: 22px;
+  max-height: min(85dvh, 640px);
 }
 
 /* ------------------------- Admin layout ------------------------- */
