@@ -2387,7 +2387,7 @@ begin
     raise exception 'Not authorized.';
   end if;
   return query
-    select o.bucket_id, count(*), coalesce(sum((o.metadata->>'size')::bigint), 0)
+    select o.bucket_id::text, count(*)::bigint, coalesce(sum((o.metadata->>'size')::bigint), 0)::bigint
     from storage.objects o
     group by o.bucket_id
     order by 3 desc;
@@ -2406,7 +2406,7 @@ begin
     raise exception 'Not authorized.';
   end if;
   return query
-    select o.name, o.created_at, coalesce((o.metadata->>'size')::bigint, 0)
+    select o.name::text, o.created_at::timestamptz, coalesce((o.metadata->>'size')::bigint, 0)::bigint
     from storage.objects o
     where o.bucket_id = 'payment-qr'
       and o.name not in (select qr_image_path from public.payment_qr_codes where qr_image_path is not null)
@@ -2456,7 +2456,7 @@ begin
     raise exception 'Unknown bucket.';
   end if;
   return query
-    select o.name, o.created_at, coalesce((o.metadata->>'size')::bigint, 0)
+    select o.name::text, o.created_at::timestamptz, coalesce((o.metadata->>'size')::bigint, 0)::bigint
     from storage.objects o
     where o.bucket_id = p_bucket
       and (p_before is null or o.created_at < p_before)

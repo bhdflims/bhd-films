@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { HardDrive, Trash2, RefreshCw } from 'lucide-react'
+import JSZip from 'jszip'
+import { HardDrive, Trash2, RefreshCw, Download } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import { formatBytes, formatDate } from '../../utils/format'
@@ -35,9 +36,12 @@ export default function StorageCleanup() {
   const [filesLoading, setFilesLoading] = useState(false)
   const [checked, setChecked] = useState({})
   const [deleteBusy, setDeleteBusy] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupProgress, setBackupProgress] = useState('')
 
   async function loadSummary() {
     setLoading(true)
+    setMessage('')
     const [{ data: summaryData, error: summaryErr }, { data: qrData }] = await Promise.all([
       supabase.rpc('storage_usage_summary'),
       supabase.rpc('storage_qr_orphans')
@@ -75,6 +79,7 @@ export default function StorageCleanup() {
   async function loadFiles() {
     setFilesLoading(true)
     setChecked({})
+    setMessage('')
     const before = beforeDate ? new Date(beforeDate + 'T23:59:59').toISOString() : null
     const { data, error } = await supabase.rpc('storage_list_files', { p_bucket: selectedBucket, p_before: before })
     setFilesLoading(false)
@@ -100,11 +105,60 @@ export default function StorageCleanup() {
     setChecked(next)
   }
 
+  // Downloads a .zip containing the actual selected images (not just their
+  // names) plus a manifest.json describing each one, so an admin has a real
+  // backup on their own computer before anything is permanently deleted.
+  // Nothing is deleted by this - it's purely a safety net for "just in case
+  // we need it again later".
+  async function handleDownloadBackup() {
+    if (selectedNames.length === 0) return
+    setBackupBusy(true)
+    setMessage('')
+    try {
+      const zip = new JSZip()
+      const manifest = []
+      for (let i = 0; i < selectedNames.length; i++) {
+        const name = selectedNames[i]
+        setBackupProgress(`Downloading ${i + 1} of ${selectedNames.length}…`)
+        const { data: signed } = await supabase.storage.from(selectedBucket).createSignedUrl(name, 300)
+        if (!signed?.signedUrl) continue
+        const res = await fetch(signed.signedUrl)
+        if (!res.ok) continue
+        const blob = await res.blob()
+        // Flatten "userid/1699999999-file.jpg" into a safe filename inside
+        // the zip so it doesn't try to create folders.
+        zip.file(name.replace(/\//g, '__'), blob)
+        const meta = files.find((f) => f.name === name)
+        manifest.push({ bucket: selectedBucket, path: name, size_bytes: meta?.size_bytes ?? blob.size, uploaded_at: meta?.created_at ?? null })
+      }
+      if (manifest.length === 0) {
+        setMessage('Could not download any of the selected files for backup.')
+        return
+      }
+      zip.file('manifest.json', JSON.stringify(manifest, null, 2))
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `bhd-films-backup-${selectedBucket}-${Date.now()}.zip`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setMessage(`Backup downloaded — ${manifest.length} of ${selectedNames.length} file(s) saved to your Downloads folder. Now safe to delete if you want to.`)
+    } catch (e) {
+      setMessage(e.message || 'Could not create the backup.')
+    } finally {
+      setBackupBusy(false)
+      setBackupProgress('')
+    }
+  }
+
   async function handleDeleteSelected() {
     if (selectedNames.length === 0) return
     if (
       !window.confirm(
-        `Delete ${selectedNames.length} file(s), freeing ${formatBytes(selectedBytes)}?\n\nIf any of these belong to an old support ticket or refund, that record will still show up in history but its photo will no longer open. This cannot be undone.`
+        `Delete ${selectedNames.length} file(s), freeing ${formatBytes(selectedBytes)}?\n\nIf any of these belong to an old support ticket or refund, that record will still show up in history but its photo will no longer open. This cannot be undone — use "Download Backup" first if you might need these again.`
       )
     ) {
       return
@@ -198,25 +252,21 @@ export default function StorageCleanup() {
           photo can no longer be opened. Only delete ones you're sure you won't need to look back at.
         </p>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-          <div style={{ flex: '1 1 220px' }}>
-            <span className="field-label">Bucket</span>
-            <select value={selectedBucket} onChange={(e) => setSelectedBucket(e.target.value)}>
-              {BROWSABLE_BUCKETS.map((b) => (
-                <option key={b.id} value={b.id}>{b.label}</option>
-              ))}
-            </select>
-          </div>
-          <div style={{ flex: '1 1 160px' }}>
-            <span className="field-label">Uploaded before (optional)</span>
-            <input type="date" value={beforeDate} onChange={(e) => setBeforeDate(e.target.value)} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button className="btn btn-secondary btn-sm" onClick={loadFiles} disabled={filesLoading}>
-              {filesLoading ? 'Loading…' : 'Apply Filter'}
-            </button>
-          </div>
+        <div style={{ marginBottom: 10 }}>
+          <span className="field-label">Bucket</span>
+          <select value={selectedBucket} onChange={(e) => setSelectedBucket(e.target.value)}>
+            {BROWSABLE_BUCKETS.map((b) => (
+              <option key={b.id} value={b.id}>{b.label}</option>
+            ))}
+          </select>
         </div>
+        <div style={{ marginBottom: 12 }}>
+          <span className="field-label">Uploaded before (optional)</span>
+          <input type="date" value={beforeDate} onChange={(e) => setBeforeDate(e.target.value)} />
+        </div>
+        <button className="btn btn-secondary btn-sm" style={{ marginBottom: 14 }} onClick={loadFiles} disabled={filesLoading}>
+          {filesLoading ? 'Loading…' : 'Apply Filter'}
+        </button>
 
         {filesLoading ? (
           <Loader />
@@ -257,9 +307,18 @@ export default function StorageCleanup() {
               ))}
             </div>
 
-            <button className="btn btn-primary btn-sm" onClick={handleDeleteSelected} disabled={deleteBusy || selectedNames.length === 0}>
-              <Trash2 size={14} /> {deleteBusy ? 'Deleting…' : `Delete ${selectedNames.length} selected file(s)`}
-            </button>
+            <p className="text-faint" style={{ fontSize: 11, margin: '0 0 8px' }}>
+              Not sure? Download a backup first — it saves the actual photos to your computer as a .zip file,
+              so you'll still have them even after deleting from here.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-secondary btn-sm" onClick={handleDownloadBackup} disabled={backupBusy || selectedNames.length === 0}>
+                <Download size={14} /> {backupBusy ? (backupProgress || 'Preparing…') : `Download Backup (${selectedNames.length})`}
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={handleDeleteSelected} disabled={deleteBusy || selectedNames.length === 0}>
+                <Trash2 size={14} /> {deleteBusy ? 'Deleting…' : `Delete ${selectedNames.length} selected file(s)`}
+              </button>
+            </div>
           </>
         )}
       </div>
