@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Chrome, Mail } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import Loader from '../../components/common/Loader'
 
 export default function Login() {
-  const { signInWithGoogle, sendLoginCode, verifyLoginCode, isLoggedIn, isAdmin, loading: authLoading } = useAuth()
+  const {
+    signInWithGoogle, sendLoginCode, verifyLoginCode, isLoggedIn, isAdmin,
+    loading: authLoading, authError, clearAuthError
+  } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState('')
@@ -17,27 +20,55 @@ export default function Login() {
   const [codeSent, setCodeSent] = useState(false)
   const [codeBusy, setCodeBusy] = useState(false)
 
-  // Wait for the admin-role lookup to finish before deciding where to
-  // send a logged-in user. Without this wait, an admin account would
-  // flash "isAdmin: false" (it hasn't loaded yet) and get sent into the
-  // customer app instead of /admin.
-  if (authLoading) return <Loader />
+  // If an account was force-signed-out right after login (e.g. it's
+  // suspended), AuthContext leaves a message here for us to show exactly
+  // once, then clears it so it doesn't reappear on a later visit.
+  useEffect(() => {
+    if (authError) {
+      setError(authError)
+      clearAuthError()
+    }
+  }, [authError, clearAuthError])
+
+  // Google redirects back to this same page after the user cancels or
+  // Google itself reports an error (e.g. "access_denied") - Supabase
+  // passes that through as URL query/hash params instead of throwing a
+  // JS error we could catch, so without this the page just silently
+  // lands back here logged-out with no explanation.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash ? window.location.hash.slice(1) : window.location.search)
+    const oauthError = params.get('error_description') || params.get('error')
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError.replace(/\+/g, ' ')))
+      window.history.replaceState(null, '', window.location.pathname)
+    }
+  }, [])
 
   // If this account is an admin, always land in the admin panel - even
   // if this customer login screen is what happened to load first (e.g.
   // a phone's home-screen icon or a bookmark pointing at the customer
   // site instead of /admin). Without this, an admin who signs in here
   // ends up dropped into the customer app instead of their own panel.
-  if (isLoggedIn) {
-    navigate(isAdmin ? '/admin' : (location.state?.from || '/'), { replace: true })
-    return null
-  }
+  useEffect(() => {
+    if (!authLoading && isLoggedIn) {
+      navigate(isAdmin ? '/admin' : (location.state?.from || '/'), { replace: true })
+    }
+  }, [authLoading, isLoggedIn, isAdmin, location.state, navigate])
+
+  // Wait for the admin-role lookup to finish before deciding where to
+  // send a logged-in user. Without this wait, an admin account would
+  // flash "isAdmin: false" (it hasn't loaded yet) and get sent into the
+  // customer app instead of /admin.
+  if (authLoading || isLoggedIn) return <Loader />
 
   async function handleGoogle() {
     setError('')
     setLoading(true)
     try {
-      await signInWithGoogle()
+      // Pass along wherever the user was actually trying to go (e.g. they
+      // hit "Add Funds" while logged out) so Google sign-in lands them
+      // back there instead of always dropping them on the home page.
+      await signInWithGoogle(location.state?.from || '/')
     } catch (e) {
       setError(e.message || 'Could not start Google sign-in.')
       setLoading(false)

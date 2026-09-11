@@ -17,21 +17,52 @@ export function AuthProvider({ children }) {
   // second before the real role loads. Routes wait on this too (see
   // the combined "loading" below) so that race can't happen.
   const [profileLoading, setProfileLoading] = useState(false)
+  // Set (with a customer-facing message) whenever we had to force-sign-out
+  // an account right after login - e.g. it was suspended by an admin.
+  // Login.jsx reads this once and shows it as the error under the form.
+  const [authError, setAuthError] = useState('')
 
-  const loadProfile = useCallback(async (userId) => {
+  const loadProfile = useCallback(async (userId, opts = {}) => {
+    // "silent" is used for the automatic hourly background token refresh
+    // (see onAuthStateChange below) - we still want to re-check the
+    // profile/admin role then (e.g. in case the account got suspended
+    // meanwhile), just without flipping the app-wide loading flag, which
+    // would unmount whatever protected page the customer is on and lose
+    // anything they were mid-typing (Add Funds amount, a support ticket,
+    // etc.) for no reason - nothing about their session actually changed.
+    const silent = !!opts.silent
     if (!userId) {
       setProfile(null)
       setAdminRole(null)
       setAdminPermissions({})
       return
     }
-    setProfileLoading(true)
+    if (!silent) setProfileLoading(true)
     try {
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
+
+      // A suspended customer account must not actually be able to use the
+      // app - admins toggle this from Customer Detail expecting it to
+      // really lock the account out, not just show a badge. Catch it
+      // right here, the one place every login (Google + email code) and
+      // every silent token refresh passes through, so it can't be
+      // bypassed by any route. We deliberately never setProfile(...) with
+      // the suspended row, so nothing downstream briefly treats them as a
+      // signed-in customer.
+      if (profileData?.account_status === 'suspended') {
+        setProfile(null)
+        setAdminRole(null)
+        setAdminPermissions({})
+        setAuthError('Your account has been suspended. Please contact support for help.')
+        setSession(null)
+        await supabase.auth.signOut()
+        return
+      }
+
       setProfile(profileData)
 
       const { data: adminData } = await supabase
@@ -42,9 +73,11 @@ export function AuthProvider({ children }) {
       setAdminRole(adminData?.role || null)
       setAdminPermissions(adminData?.permissions || {})
     } finally {
-      setProfileLoading(false)
+      if (!silent) setProfileLoading(false)
     }
   }, [])
+
+  const clearAuthError = useCallback(() => setAuthError(''), [])
 
   useEffect(() => {
     let mounted = true
@@ -55,9 +88,9 @@ export function AuthProvider({ children }) {
       loadProfile(s?.user?.id).finally(() => setLoading(false))
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
-      loadProfile(s?.user?.id)
+      loadProfile(s?.user?.id, { silent: event === 'TOKEN_REFRESHED' })
     })
 
     return () => {
@@ -135,6 +168,8 @@ export function AuthProvider({ children }) {
     isAdmin: !!adminRole,
     isSuperAdmin: adminRole === 'super_admin',
     loading: loading || profileLoading,
+    authError,
+    clearAuthError,
     signInWithGoogle,
     signInWithPassword,
     sendLoginCode,

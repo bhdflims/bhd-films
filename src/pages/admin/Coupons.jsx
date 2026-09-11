@@ -83,6 +83,10 @@ export default function Coupons() {
       setError('Percent discount cannot be more than 100.')
       return
     }
+    if (form.valid_from && form.valid_until && form.valid_until < form.valid_from) {
+      setError('"Valid until" cannot be before "Valid from".')
+      return
+    }
 
     setSaving(true)
     const payload = {

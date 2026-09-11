@@ -1137,11 +1137,13 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_admin uuid := auth.uid();
   v_rr public.refund_requests%rowtype;
+  v_order public.orders%rowtype;
   v_wallet public.wallets%rowtype;
   v_before numeric;
   v_after numeric;
   v_final_remark text;
   v_final_amount numeric;
+  v_already_refunded boolean;
 begin
   if not public.has_permission('manage_refunds') then
     raise exception 'Not authorized.';
@@ -1164,6 +1166,27 @@ begin
     end if;
     if p_resolution_method = 'bank' and (p_receipt_path is null or length(trim(p_receipt_path)) = 0) then
       raise exception 'Upload proof of payment before marking this as paid via bank/UPI.';
+    end if;
+
+    -- Lock the order row too (same order as admin_update_order_status:
+    -- orders before wallets, so the two functions can never deadlock
+    -- against each other), then check whether this exact order was
+    -- ALREADY refunded via the other path (an admin cancelling/refunding
+    -- it directly from the Orders page). Without this, an order refunded
+    -- there and a separately-submitted refund request for the same order
+    -- could both credit the customer's wallet - a real double payout.
+    select * into v_order from public.orders where id = v_rr.order_id for update;
+    if v_order is not null then
+      if v_order.status in ('cancelled','refunded') then
+        raise exception 'This order has already been cancelled/refunded (likely from the Orders page). Please reject this request instead, or check Wallet Transactions before proceeding.';
+      end if;
+      select exists(
+        select 1 from public.wallet_transactions
+        where related_order_id = v_rr.order_id and type = 'refund'
+      ) into v_already_refunded;
+      if v_already_refunded then
+        raise exception 'This order has already been refunded once. Please reject this request instead, or check Wallet Transactions before proceeding.';
+      end if;
     end if;
 
     v_final_amount := coalesce(p_amount, v_rr.amount);
@@ -1534,7 +1557,14 @@ begin
   -- amount computed in the browser) using the exact same rules as
   -- validate_coupon above.
   if p_coupon_code is not null and length(trim(p_coupon_code)) > 0 then
-    select * into v_coupon from public.coupons where upper(code) = upper(trim(p_coupon_code));
+    -- Lock this coupon's row before checking/using it. Without this, two
+    -- orders placed at nearly the same moment (by the same customer, or
+    -- different customers on a limited-total coupon) could both pass the
+    -- usage-limit checks below before either one's redemption row exists,
+    -- letting a coupon get used more times than its limit allows. The
+    -- lock makes the second order wait until the first one fully commits,
+    -- so its count/limit checks always see the first order's redemption.
+    select * into v_coupon from public.coupons where upper(code) = upper(trim(p_coupon_code)) for update;
     if v_coupon.id is null then
       raise exception 'Invalid coupon code.';
     end if;
