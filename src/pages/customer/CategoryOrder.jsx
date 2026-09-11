@@ -503,6 +503,58 @@ export default function CategoryOrder() {
               ))}
             </div>
             <div className="divider" />
+
+            {/* The coupon field lives here too (not just further down in
+                the Order Summary card) - the floating "Pay Now" shortcut
+                can bring someone straight to this popup without them
+                ever scrolling past that card, and they should still get
+                the chance to use a coupon before paying. */}
+            {appliedCoupon ? (
+              <div
+                className="row-between"
+                style={{ fontSize: 12, background: 'rgba(46,204,113,0.08)', border: '1px solid rgba(46,204,113,0.25)', borderRadius: 10, padding: '7px 10px', marginBottom: 8 }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Tag size={12} className="text-success" />
+                  <span className="text-success" style={{ fontWeight: 700 }}>{appliedCoupon.code}</span> applied
+                </span>
+                <button type="button" className="icon-btn" style={{ width: 22, height: 22 }} onClick={handleRemoveCoupon} aria-label="Remove coupon">
+                  <X size={11} />
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <input
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  placeholder="Have a coupon code?"
+                  style={{ flex: 1, textTransform: 'uppercase', fontSize: 12.5, padding: '9px 12px' }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ width: 'auto', flexShrink: 0, padding: '9px 14px', fontSize: 12.5 }}
+                  onClick={handleApplyCoupon}
+                  disabled={couponChecking}
+                >
+                  {couponChecking ? 'Checking…' : 'Apply'}
+                </button>
+              </div>
+            )}
+            {couponError && <div className="field-error" style={{ fontSize: 11.5, marginBottom: 8 }}>{couponError}</div>}
+
+            {appliedCoupon && (
+              <div className="row-between" style={{ fontSize: 12.5, marginBottom: 4 }}>
+                <span className="text-faint">Grand Total</span>
+                <span className="text-faint" style={{ textDecoration: 'line-through' }}>{formatCurrency(grandTotal)}</span>
+              </div>
+            )}
+            {appliedCoupon && (
+              <div className="row-between" style={{ fontSize: 12.5, marginBottom: 4 }}>
+                <span className="text-faint">Coupon Discount</span>
+                <span className="text-success" style={{ fontWeight: 700 }}>- {formatCurrency(appliedCoupon.discount_amount)}</span>
+              </div>
+            )}
             <div className="row-between" style={{ fontWeight: 800, fontSize: 14 }}>
               <span>Total Payable</span>
               <span className="text-gold">{formatCurrency(payableTotal)}</span>
