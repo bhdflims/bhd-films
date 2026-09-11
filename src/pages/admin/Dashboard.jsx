@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { KeyRound } from 'lucide-react'
+import { KeyRound, Calendar, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
-import { formatCurrency, formatDate } from '../../utils/format'
+import { formatCurrency, formatDate, formatDateShort } from '../../utils/format'
 import { getRange } from '../../utils/dateRanges'
 import { useAuth } from '../../context/AuthContext'
+
+// yyyy-mm-dd in the viewer's own local time (never UTC) - matches exactly
+// what an <input type="date"> expects/returns, and what dateRanges.js's
+// "custom" branch parses back into a local-time Date.
+function toDateInput(d) {
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
 
 const FILTERS = [
   { key: 'today', label: 'Today' },
@@ -32,6 +42,21 @@ export default function Dashboard() {
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(true)
+
+  function pickYesterday() {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    const v = toDateInput(d)
+    setCustomFrom(v)
+    setCustomTo(v)
+  }
+  function pickLastNDays(n) {
+    const to = new Date()
+    const from = new Date()
+    from.setDate(from.getDate() - (n - 1))
+    setCustomFrom(toDateInput(from))
+    setCustomTo(toDateInput(to))
+  }
   const [stats, setStats] = useState(null)
   const [recentOrders, setRecentOrders] = useState([])
   const [recentFundRequests, setRecentFundRequests] = useState([])
@@ -209,17 +234,49 @@ export default function Dashboard() {
       </div>
 
       {filter === 'custom' && (
-        <div className="surface-card" style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ flex: '1 1 140px' }}>
-            <span className="field-label">From</span>
-            <input type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} />
+        <div className="surface-card" style={{ marginBottom: 16 }}>
+          <div className="row-between" style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <Calendar size={15} className="text-gold" />
+              <strong style={{ fontSize: 13.5 }}>Custom Date Range</strong>
+            </div>
+            {(customFrom || customTo) && (
+              <button
+                className="icon-btn"
+                aria-label="Clear dates"
+                onClick={() => {
+                  setCustomFrom('')
+                  setCustomTo('')
+                }}
+              >
+                <X size={13} />
+              </button>
+            )}
           </div>
-          <div style={{ flex: '1 1 140px' }}>
-            <span className="field-label">To</span>
-            <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} />
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
+            <div style={{ flex: '1 1 140px' }}>
+              <span className="field-label">From</span>
+              <input type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} />
+            </div>
+            <div style={{ flex: '1 1 140px' }}>
+              <span className="field-label">To</span>
+              <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} />
+            </div>
           </div>
-          {(!customFrom || !customTo) && (
-            <p className="text-faint" style={{ fontSize: 11.5, margin: 0, flexBasis: '100%' }}>Pick both dates to see that period's numbers.</p>
+
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button className="chip" style={{ cursor: 'pointer', border: 'none' }} onClick={pickYesterday}>Yesterday</button>
+            <button className="chip" style={{ cursor: 'pointer', border: 'none' }} onClick={() => pickLastNDays(7)}>Last 7 Days</button>
+            <button className="chip" style={{ cursor: 'pointer', border: 'none' }} onClick={() => pickLastNDays(30)}>Last 30 Days</button>
+          </div>
+
+          {customFrom && customTo ? (
+            <p className="text-faint" style={{ fontSize: 11.5, marginTop: 12, marginBottom: 0 }}>
+              Showing {customFrom === customTo ? formatDateShort(customFrom) : `${formatDateShort(customFrom)} – ${formatDateShort(customTo)}`}
+            </p>
+          ) : (
+            <p className="text-faint" style={{ fontSize: 11.5, marginTop: 12, marginBottom: 0 }}>Pick both dates, or use a shortcut above.</p>
           )}
         </div>
       )}
