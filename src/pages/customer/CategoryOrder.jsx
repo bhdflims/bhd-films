@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useWallet } from '../../hooks/useWallet'
 import Loader from '../../components/common/Loader'
 import EmptyState from '../../components/common/EmptyState'
+import Modal from '../../components/common/Modal'
 import ServiceCalculatorCard from '../../components/services/ServiceCalculatorCard'
 import { getIcon } from '../../utils/iconMap'
 import { formatCurrency, formatRate } from '../../utils/format'
@@ -28,6 +29,7 @@ export default function CategoryOrder() {
   const [selection, setSelection] = useState({}) // serviceId -> { selected, quantity, targetLink }
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const [showErrors, setShowErrors] = useState(false)
 
@@ -159,7 +161,11 @@ export default function CategoryOrder() {
     return null
   }
 
-  async function handlePayNow() {
+  // Runs every validation check, and if everything looks good, opens the
+  // "Confirm Your Order" popup instead of charging the wallet right away -
+  // the actual charge only happens once the customer taps "Yes, Place
+  // Order" in that popup (see handleConfirmPay below).
+  function handlePayNow() {
     setSubmitError('')
     setShowErrors(true)
 
@@ -183,6 +189,10 @@ export default function CategoryOrder() {
       return
     }
 
+    setConfirmOpen(true)
+  }
+
+  async function handleConfirmPay() {
     setSubmitting(true)
     try {
       const payload = lineItems.map((item) => ({
@@ -206,15 +216,18 @@ export default function CategoryOrder() {
           setSubmitError(msg.replace('INSUFFICIENT_FUNDS:', ''))
         }
         setSubmitting(false)
+        setConfirmOpen(false)
         return
       }
 
+      setConfirmOpen(false)
       await refreshWallet()
       setIdempotencyKey(crypto.randomUUID())
       navigate('/order-success', { state: data })
     } catch (e) {
       setSubmitError(e.message || 'Something went wrong. Please try again.')
       setSubmitting(false)
+      setConfirmOpen(false)
     }
   }
 
@@ -409,6 +422,49 @@ export default function CategoryOrder() {
             </div>
           )}
         </>
+      )}
+
+      {confirmOpen && (
+        <Modal title="Confirm Your Order" onClose={() => (submitting ? null : setConfirmOpen(false))}>
+          <p className="text-dim" style={{ fontSize: 13, marginBottom: 14 }}>
+            <strong className="text-gold">{formatCurrency(payableTotal)}</strong> will be deducted from your wallet right now
+            for {lineItems.length} service{lineItems.length > 1 ? 's' : ''}. This cannot be undone once placed.
+          </p>
+
+          <div className="surface-card" style={{ marginBottom: 14 }}>
+            {lineItems.map((item) => (
+              <div key={item.service.id} className="row-between" style={{ fontSize: 12, marginBottom: 6 }}>
+                <span className="text-faint">
+                  {item.service.name}
+                  {!item.service.is_fixed_price && ` × ${item.quantity || 0}`}
+                </span>
+                <span>{formatCurrency(item.total)}</span>
+              </div>
+            ))}
+            <div className="divider" />
+            <div className="row-between" style={{ fontWeight: 800, fontSize: 14 }}>
+              <span>Total Payable</span>
+              <span className="text-gold">{formatCurrency(payableTotal)}</span>
+            </div>
+          </div>
+
+          {wallet && (
+            <p className="text-faint" style={{ fontSize: 11.5, marginBottom: 14 }}>
+              Wallet balance after this order: {formatCurrency(wallet.available_fund - payableTotal)}
+            </p>
+          )}
+
+          {submitError && <div className="field-error" style={{ marginBottom: 12 }}>{submitError}</div>}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setConfirmOpen(false)} disabled={submitting}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleConfirmPay} disabled={submitting}>
+              <ShieldCheck size={16} /> {submitting ? 'Processing…' : 'Yes, Place Order'}
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )
