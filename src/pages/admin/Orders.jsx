@@ -99,9 +99,16 @@ export default function Orders() {
               {open && (
                 <div style={{ marginTop: 10 }}>
                   {(order.order_items || []).map((item) => (
-                    <div key={item.id} className="row-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                      <span>{item.service_name_snapshot} (Qty {item.quantity} × {formatRate(item.applied_rate)})</span>
-                      <span>{formatCurrency(item.item_total)}</span>
+                    <div key={item.id} className="row-between" style={{ fontSize: 12, marginBottom: 6, alignItems: 'flex-start' }}>
+                      <span>
+                        {item.service_name_snapshot}
+                        {item.service_external_id_snapshot != null && (
+                          <strong className="text-gold"> (ID: {item.service_external_id_snapshot})</strong>
+                        )}
+                        <br />
+                        <span className="text-faint">Qty {item.quantity} × {formatRate(item.applied_rate)} / 1000</span>
+                      </span>
+                      <span style={{ flexShrink: 0 }}>{formatCurrency(item.item_total)}</span>
                     </div>
                   ))}
                   {order.order_items?.[0]?.target_link && (

@@ -11,6 +11,8 @@ const EMPTY = {
   category_id: '',
   name: '',
   description: '',
+  external_service_id: '',
+  service_group: '',
   min_quantity: 100,
   max_quantity: 100000,
   base_rate: 0,
@@ -65,6 +67,10 @@ export default function Services() {
       setError('Name and category are required.')
       return
     }
+    if (!form.external_service_id || !Number.isInteger(Number(form.external_service_id))) {
+      setError('Service ID (the supplier panel\'s service ID) is required and must be a whole number.')
+      return
+    }
     if (Number(form.max_quantity) < Number(form.min_quantity)) {
       setError('Maximum quantity must be greater than or equal to minimum quantity.')
       return
@@ -74,6 +80,8 @@ export default function Services() {
       category_id: form.category_id,
       name: form.name.trim(),
       description: form.description || null,
+      external_service_id: Number(form.external_service_id),
+      service_group: form.service_group?.trim() || null,
       min_quantity: Number(form.min_quantity),
       max_quantity: Number(form.max_quantity),
       base_rate: Number(form.base_rate),
@@ -141,9 +149,14 @@ export default function Services() {
         {visibleServices.map((svc) => (
           <div key={svc.id} className="list-row">
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 13.5 }}>{svc.name}</div>
+              <div style={{ fontWeight: 700, fontSize: 13.5 }}>
+                {svc.name}
+                {svc.external_service_id != null && (
+                  <span className="chip chip-gold" style={{ marginLeft: 6, fontSize: 10 }}>ID: {svc.external_service_id}</span>
+                )}
+              </div>
               <div className="text-faint" style={{ fontSize: 11 }}>
-                {categoryName(svc.category_id)} · {svc.min_quantity}–{svc.max_quantity} · {formatRate(svc.base_rate)}/unit
+                {categoryName(svc.category_id)}{svc.service_group ? ` · ${svc.service_group}` : ''} · {svc.min_quantity}–{svc.max_quantity} · {formatRate(svc.base_rate)}/1000
               </div>
             </div>
             {svc.is_popular && <span className="chip chip-gold">Popular</span>}
@@ -174,6 +187,16 @@ export default function Services() {
             <span className="field-label">Service Name</span>
             <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Followers" />
           </div>
+          <div className="grid-2" style={{ marginBottom: 10 }}>
+            <div>
+              <span className="field-label">Service ID (supplier panel ID)</span>
+              <input type="number" value={form.external_service_id} onChange={(e) => setForm({ ...form, external_service_id: e.target.value })} placeholder="e.g. 3585" />
+            </div>
+            <div>
+              <span className="field-label">Group (optional, e.g. Likes)</span>
+              <input value={form.service_group || ''} onChange={(e) => setForm({ ...form, service_group: e.target.value })} placeholder="e.g. Followers" />
+            </div>
+          </div>
           <div style={{ marginBottom: 10 }}>
             <span className="field-label">Description</span>
             <textarea rows={2} value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} />
@@ -189,7 +212,7 @@ export default function Services() {
             </div>
           </div>
           <div style={{ marginBottom: 10 }}>
-            <span className="field-label">Base Rate (₹ per unit)</span>
+            <span className="field-label">Base Rate (₹ per 1000)</span>
             <input type="number" step="0.0001" value={form.base_rate} onChange={(e) => setForm({ ...form, base_rate: e.target.value })} />
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>

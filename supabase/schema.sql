@@ -56,11 +56,20 @@ create table public.categories (
 );
 
 -- Services inside a category (e.g. Instagram -> Followers, Likes...).
+-- base_rate is the CUSTOMER RATE PER 1,000 units (not per single unit) -
+-- matches how the SMM supplier panel prices things, so admin can paste
+-- panel rates in directly. place_order() divides by 1000 when charging.
+-- external_service_id is the matching service ID on the supplier's SMM
+-- panel - recorded so the admin can tell, from any order, exactly which
+-- panel service to fulfil (every panel service has its own distinct
+-- price, so the name alone isn't reliable enough to fulfil orders by).
 create table public.services (
   id uuid primary key default gen_random_uuid(),
   category_id uuid not null references public.categories(id) on delete restrict,
   name text not null,
   description text,
+  external_service_id int not null unique,
+  service_group text,
   min_quantity int not null default 100 check (min_quantity > 0),
   max_quantity int not null default 100000 check (max_quantity >= min_quantity),
   base_rate numeric(12,4) not null default 0 check (base_rate >= 0),
@@ -154,11 +163,13 @@ create table public.orders (
 );
 
 -- One row per service inside an order, with the HISTORICAL rate applied.
+-- applied_rate is per 1,000 (same convention as services.base_rate).
 create table public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
   service_id uuid references public.services(id) on delete set null,
   service_name_snapshot text not null,
+  service_external_id_snapshot int,
   target_link text,
   quantity int not null,
   applied_rate numeric(12,4) not null,
@@ -1438,7 +1449,7 @@ begin
   end if;
 
   create temporary table if not exists tmp_order_items (
-    service_id uuid, service_name text, target_link text, quantity int, applied_rate numeric, item_total numeric
+    service_id uuid, service_name text, service_external_id int, target_link text, quantity int, applied_rate numeric, item_total numeric
   ) on commit drop;
   delete from tmp_order_items where true;
 
@@ -1478,11 +1489,13 @@ begin
       v_rate := v_service.base_rate;
     end if;
 
-    v_item_total := round(v_rate * v_qty, 2);
+    -- v_rate is the CUSTOMER RATE PER 1,000 units, so the charge for this
+    -- line is (rate / 1000) * quantity, not rate * quantity.
+    v_item_total := round(v_rate * v_qty / 1000, 2);
     v_grand_total := v_grand_total + v_item_total;
 
-    insert into tmp_order_items(service_id, service_name, target_link, quantity, applied_rate, item_total)
-    values (v_service.id, v_service.name, v_target, v_qty, v_rate, v_item_total);
+    insert into tmp_order_items(service_id, service_name, service_external_id, target_link, quantity, applied_rate, item_total)
+    values (v_service.id, v_service.name, v_service.external_service_id, v_target, v_qty, v_rate, v_item_total);
 
     if v_category_id is null then
       v_category_id := v_service.category_id;
@@ -1558,8 +1571,8 @@ begin
   values (v_order_code, v_user, v_category_id, v_category_name, v_grand_total, v_discount_amount, case when v_coupon_id is not null then v_coupon.code else null end, 'received', v_est_time, p_idempotency_key)
   returning id into v_order_id;
 
-  insert into public.order_items(order_id, service_id, service_name_snapshot, target_link, quantity, applied_rate, item_total)
-  select v_order_id, service_id, service_name, target_link, quantity, applied_rate, item_total from tmp_order_items;
+  insert into public.order_items(order_id, service_id, service_name_snapshot, service_external_id_snapshot, target_link, quantity, applied_rate, item_total)
+  select v_order_id, service_id, service_name, service_external_id, target_link, quantity, applied_rate, item_total from tmp_order_items;
 
   insert into public.wallet_transactions(wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id)
   values (

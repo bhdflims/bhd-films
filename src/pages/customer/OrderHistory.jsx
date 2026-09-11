@@ -157,11 +157,16 @@ export default function OrderHistory() {
                   {(order.order_items || []).map((item) => (
                     <div key={item.id} style={{ marginBottom: 10 }}>
                       <div className="row-between" style={{ fontSize: 12.5 }}>
-                        <span style={{ fontWeight: 700 }}>{item.service_name_snapshot}</span>
+                        <span style={{ fontWeight: 700 }}>
+                          {item.service_name_snapshot}
+                          {item.service_external_id_snapshot != null && (
+                            <span className="text-faint" style={{ fontWeight: 400 }}> (ID: {item.service_external_id_snapshot})</span>
+                          )}
+                        </span>
                         <span>{formatCurrency(item.item_total)}</span>
                       </div>
                       <div className="text-faint" style={{ fontSize: 11 }}>
-                        Qty {item.quantity} × {formatRate(item.applied_rate)}
+                        Qty {item.quantity} × {formatRate(item.applied_rate)} / 1000
                       </div>
                       {item.target_link && (
                         <div className="text-faint" style={{ fontSize: 11, wordBreak: 'break-all' }}>

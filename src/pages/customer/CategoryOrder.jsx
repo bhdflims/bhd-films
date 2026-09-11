@@ -259,30 +259,46 @@ export default function CategoryOrder() {
         <EmptyState title="No services yet" subtitle="The admin hasn't added services to this category yet." />
       ) : (
         <>
-          {services.map((s) => {
-            const state = selection[s.id] || {}
-            const { rate, total } = calculateServiceTotal(s, tiersByService[s.id] || [], state.quantity)
-            return (
-              <ServiceCalculatorCard
-                key={s.id}
-                service={s}
-                selected={!!state.selected}
-                quantity={state.quantity || ''}
-                targetLink={state.targetLink || ''}
-                rate={rate}
-                total={total}
-                quantityError={showErrors && state.quantity ? validateQuantity(s, state.quantity) : null}
-                linkError={
-                  showErrors && s.requires_target_link && state.targetLink && !isValidTargetLink(s.target_platform, state.targetLink)
-                    ? targetLinkErrorMessage(s.target_platform)
-                    : null
-                }
-                onToggle={() => updateSelection(s.id, { selected: !state.selected })}
-                onQuantityChange={(v) => updateSelection(s.id, { quantity: v })}
-                onLinkChange={(v) => updateSelection(s.id, { targetLink: v })}
-              />
-            )
-          })}
+          {(() => {
+            // Services are grouped under a small sub-heading (Likes,
+            // Followers, Views...) when they carry a service_group, purely
+            // to make a long list of services on one platform easier to
+            // scan - services without a group just render in order with
+            // no heading, so this is backward compatible with old data.
+            let lastGroup
+            return services.map((s) => {
+              const state = selection[s.id] || {}
+              const { rate, total } = calculateServiceTotal(s, tiersByService[s.id] || [], state.quantity)
+              const showGroupHeading = s.service_group && s.service_group !== lastGroup
+              lastGroup = s.service_group
+              return (
+                <div key={s.id}>
+                  {showGroupHeading && (
+                    <div className="section-title" style={{ margin: '14px 0 8px' }}>
+                      {s.service_group}
+                    </div>
+                  )}
+                  <ServiceCalculatorCard
+                    service={s}
+                    selected={!!state.selected}
+                    quantity={state.quantity || ''}
+                    targetLink={state.targetLink || ''}
+                    rate={rate}
+                    total={total}
+                    quantityError={showErrors && state.quantity ? validateQuantity(s, state.quantity) : null}
+                    linkError={
+                      showErrors && s.requires_target_link && state.targetLink && !isValidTargetLink(s.target_platform, state.targetLink)
+                        ? targetLinkErrorMessage(s.target_platform)
+                        : null
+                    }
+                    onToggle={() => updateSelection(s.id, { selected: !state.selected })}
+                    onQuantityChange={(v) => updateSelection(s.id, { quantity: v })}
+                    onLinkChange={(v) => updateSelection(s.id, { targetLink: v })}
+                  />
+                </div>
+              )
+            })
+          })()}
 
           {hasSelection && (
             <div className="surface-card" style={{ marginTop: 6 }}>
@@ -290,11 +306,16 @@ export default function CategoryOrder() {
                 Order Summary
               </div>
               {lineItems.map((item) => (
-                <div key={item.service.id} className="row-between" style={{ fontSize: 12.5, marginBottom: 6 }}>
+                <div key={item.service.id} className="row-between" style={{ fontSize: 12.5, marginBottom: 6, alignItems: 'flex-start' }}>
                   <span className="text-dim">
-                    {item.service.name} ({item.quantity || 0} × {formatRate(item.rate)})
+                    {item.service.name}
+                    {item.service.external_service_id != null && (
+                      <span className="text-faint"> (ID: {item.service.external_service_id})</span>
+                    )}
+                    <br />
+                    <span className="text-faint">{item.quantity || 0} units × {formatRate(item.rate)} / 1000</span>
                   </span>
-                  <span style={{ fontWeight: 700 }}>{formatCurrency(item.total)}</span>
+                  <span style={{ fontWeight: 700, flexShrink: 0 }}>{formatCurrency(item.total)}</span>
                 </div>
               ))}
               <div className="divider" />

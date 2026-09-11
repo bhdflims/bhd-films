@@ -2,6 +2,10 @@
 // as the customer types. The real, authoritative price is always
 // recalculated inside the `place_order` database function on the server.
 // Never trust this output for the actual charge.
+//
+// IMPORTANT: service/tier rates are the CUSTOMER RATE PER 1,000 units
+// (matches the SMM supplier panel's own pricing convention), not a
+// per-single-unit price. So Customer Cost = (Quantity / 1000) * Rate.
 
 export function findApplicableTier(tiers, quantity) {
   if (!tiers || tiers.length === 0) return null
@@ -27,7 +31,7 @@ export function calculateServiceTotal(service, tiers, quantity) {
   const rate = getApplicableRate(service, tiers, qty)
   return {
     rate,
-    total: Math.round(rate * qty * 100) / 100
+    total: Math.round(((rate * qty) / 1000) * 100) / 100
   }
 }
 

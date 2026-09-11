@@ -76,7 +76,12 @@ export default function BulkPricing() {
     load()
   }
 
-  const serviceName = (id) => services.find((s) => s.id === id)?.name || '—'
+  const serviceById = (id) => services.find((s) => s.id === id)
+  const serviceName = (id) => {
+    const s = serviceById(id)
+    if (!s) return '—'
+    return s.external_service_id != null ? `${s.name} (ID: ${s.external_service_id})` : s.name
+  }
   const visibleTiers = filterService === 'all' ? tiers : tiers.filter((t) => t.service_id === filterService)
 
   if (loading) return <Loader />
@@ -156,7 +161,7 @@ export default function BulkPricing() {
             </div>
           </div>
           <div style={{ marginBottom: 10 }}>
-            <span className="field-label">Rate (₹ per unit)</span>
+            <span className="field-label">Rate (₹ per 1000)</span>
             <input type="number" step="0.0001" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} />
           </div>
           <div style={{ marginBottom: 10 }}>

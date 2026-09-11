@@ -39,7 +39,15 @@ export default function ServiceCalculatorCard({
           <span>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{service.name}</div>
             <div className="text-faint" style={{ fontSize: 11 }}>
+              {service.external_service_id != null && (
+                <>
+                  <span style={{ color: 'var(--gold-soft)', fontWeight: 700 }}>ID: {service.external_service_id}</span> ·{' '}
+                </>
+              )}
               {service.min_quantity}–{service.max_quantity} · {service.estimated_time_text}
+            </div>
+            <div className="text-faint" style={{ fontSize: 11, marginTop: 2 }}>
+              {formatRate(service.base_rate)} per 1000
             </div>
           </span>
         </span>
@@ -74,7 +82,7 @@ export default function ServiceCalculatorCard({
           <div className="divider" />
           <div className="row-between" style={{ fontSize: 12.5 }}>
             <span className="text-dim">
-              {quantity || 0} × {formatRate(rate)}
+              {quantity || 0} units × {formatRate(rate)} / 1000
             </span>
             <span style={{ fontWeight: 800, color: 'var(--gold-soft)' }}>{formatCurrency(total)}</span>
           </div>
