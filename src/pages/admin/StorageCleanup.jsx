@@ -65,15 +65,23 @@ export default function StorageCleanup() {
     if (!window.confirm(`Delete ${qrOrphans.length} old QR image(s), freeing ${formatBytes(qrOrphanBytes)}? None of these are currently shown to customers — this is safe.`)) return
     setQrBusy(true)
     setMessage('')
-    const { data, error } = await supabase.rpc('storage_delete_qr_orphans')
-    setQrBusy(false)
-    if (error) {
-      setMessage(error.message)
-      return
+    try {
+      // Deleting via storage.objects directly (the old storage_delete_qr_orphans
+      // RPC) only ever removed the catalog row - it never told Supabase's
+      // actual storage backend to free the real file bytes, so "Total
+      // space used" never went down. supabase.storage.remove() is the
+      // real delete: it removes the file itself AND its catalog row in
+      // one call. See migration_017 for the RLS policy that allows this.
+      const names = qrOrphans.map((f) => f.name)
+      const { error } = await supabase.storage.from('payment-qr').remove(names)
+      if (error) throw error
+      setMessage(`Deleted ${names.length} old QR image(s), freed ${formatBytes(qrOrphanBytes)}.`)
+      loadSummary()
+    } catch (e) {
+      setMessage(e.message || 'Could not delete these files. Please try again.')
+    } finally {
+      setQrBusy(false)
     }
-    const row = Array.isArray(data) ? data[0] : data
-    setMessage(`Deleted ${row?.deleted_count ?? 0} old QR image(s), freed ${formatBytes(row?.freed_bytes ?? 0)}.`)
-    loadSummary()
   }
 
   async function loadFiles() {
@@ -165,16 +173,24 @@ export default function StorageCleanup() {
     }
     setDeleteBusy(true)
     setMessage('')
-    const { data, error } = await supabase.rpc('storage_delete_files', { p_bucket: selectedBucket, p_names: selectedNames })
-    setDeleteBusy(false)
-    if (error) {
-      setMessage(error.message)
-      return
+    try {
+      // Same fix as the QR cleanup above: go through the real Storage API
+      // (supabase.storage.remove) instead of the old storage_delete_files
+      // RPC, which only deleted the catalog row via raw SQL and left the
+      // actual file sitting in the bucket, still counted against your
+      // Supabase storage quota even though it had "disappeared" from here.
+      const names = [...selectedNames]
+      const bytes = selectedBytes
+      const { error } = await supabase.storage.from(selectedBucket).remove(names)
+      if (error) throw error
+      setMessage(`Deleted ${names.length} file(s), freed ${formatBytes(bytes)}.`)
+      loadFiles()
+      loadSummary()
+    } catch (e) {
+      setMessage(e.message || 'Could not delete these files. Please try again.')
+    } finally {
+      setDeleteBusy(false)
     }
-    const row = Array.isArray(data) ? data[0] : data
-    setMessage(`Deleted ${row?.deleted_count ?? 0} file(s), freed ${formatBytes(row?.freed_bytes ?? 0)}.`)
-    loadFiles()
-    loadSummary()
   }
 
   if (loading) return <Loader />

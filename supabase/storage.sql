@@ -87,6 +87,14 @@ create policy "payment_qr_admin_delete"
 on storage.objects for delete to authenticated
 using (bucket_id = 'payment-qr' and public.has_permission('manage_payment_settings'));
 
+-- Lets the Storage Cleanup page's own "delete old QR images" button work.
+-- RLS policies for the same command are OR'd together, so this sits
+-- alongside payment_qr_admin_delete above rather than replacing it -
+-- either permission is enough to delete a payment-qr file.
+create policy "payment_qr_delete_storage_cleanup"
+on storage.objects for delete to authenticated
+using (bucket_id = 'payment-qr' and public.has_permission('manage_storage'));
+
 -- ---------------- support-attachments bucket policies ----------------
 create policy "support_attachments_insert_own_folder"
 on storage.objects for insert to authenticated
@@ -100,6 +108,17 @@ on storage.objects for select to authenticated
 using (
   bucket_id = 'support-attachments'
   and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
+);
+
+-- Lets the Storage Cleanup page actually delete a file an admin picked
+-- out by hand. Without this, deleting only ever removed the catalog
+-- row via a raw SQL DELETE (see storage_delete_files() in schema.sql)
+-- and never freed the real bytes from the bucket - see migration_017.
+create policy "support_attachments_delete_admin"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'support-attachments'
+  and public.has_permission('manage_storage')
 );
 
 -- ---------------- refund-receipts bucket policies ----------------
@@ -120,6 +139,14 @@ using (
   and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
 );
 
+-- Storage Cleanup page delete (see note on support_attachments above).
+create policy "refund_receipts_delete_admin"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'refund-receipts'
+  and public.has_permission('manage_storage')
+);
+
 -- ---------------- refund-customer-proof bucket policies ----------------
 -- The customer uploads here themselves (own folder only) when requesting
 -- a refund. Only they (and admins) can ever view it.
@@ -135,4 +162,12 @@ on storage.objects for select to authenticated
 using (
   bucket_id = 'refund-customer-proof'
   and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin())
+);
+
+-- Storage Cleanup page delete (see note on support_attachments above).
+create policy "refund_customer_proof_delete_admin"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'refund-customer-proof'
+  and public.has_permission('manage_storage')
 );
