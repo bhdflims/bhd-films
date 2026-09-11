@@ -14,6 +14,7 @@ export default function Customers() {
   const [wallets, setWallets] = useState([])
   const [orderCounts, setOrderCounts] = useState({})
   const [orderSpend, setOrderSpend] = useState({})
+  const [referralCounts, setReferralCounts] = useState({})
   const [query, setQuery] = useState('')
   const [dateFilter, setDateFilter] = useState('all')
   const [customFrom, setCustomFrom] = useState('')
@@ -22,10 +23,11 @@ export default function Customers() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const [profRes, walletRes, orderRes] = await Promise.all([
+      const [profRes, walletRes, orderRes, referralRes] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }),
         supabase.from('wallets').select('*'),
-        supabase.from('orders').select('user_id, grand_total, discount_amount')
+        supabase.from('orders').select('user_id, grand_total, discount_amount'),
+        supabase.from('referrals').select('referrer_id')
       ])
       setProfiles(profRes.data || [])
       setWallets(walletRes.data || [])
@@ -37,6 +39,11 @@ export default function Customers() {
       }
       setOrderCounts(counts)
       setOrderSpend(spend)
+      const refCounts = {}
+      for (const r of referralRes.data || []) {
+        refCounts[r.referrer_id] = (refCounts[r.referrer_id] || 0) + 1
+      }
+      setReferralCounts(refCounts)
       setLoading(false)
     }
     load()
@@ -92,7 +99,9 @@ export default function Customers() {
         'Wallet Balance (₹)': Number(w?.available_fund || 0),
         'Total Fund Added (₹)': Number(w?.total_fund_added || 0),
         'Total Order Spend (₹)': Number(orderSpend[p.id] || 0),
-        'Total Orders': orderCounts[p.id] || 0
+        'Total Orders': orderCounts[p.id] || 0,
+        'Referral Code': p.referral_code || '',
+        'People Referred': referralCounts[p.id] || 0
       }
     })
 
@@ -100,7 +109,8 @@ export default function Customers() {
     // Reasonable column widths so it doesn't open all-squished.
     ws['!cols'] = [
       { wch: 16 }, { wch: 20 }, { wch: 26 }, { wch: 14 }, { wch: 12 },
-      { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 12 }
+      { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 12 },
+      { wch: 14 }, { wch: 14 }
     ]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Customers')
@@ -160,6 +170,7 @@ export default function Customers() {
               <th>Wallet Balance</th>
               <th>Total Spent</th>
               <th>Orders</th>
+              <th>Referrals</th>
             </tr>
           </thead>
           <tbody>
@@ -181,6 +192,7 @@ export default function Customers() {
                   <td>{formatCurrency(w?.available_fund || 0)}</td>
                   <td>{formatCurrency(orderSpend[p.id] || 0)}</td>
                   <td>{orderCounts[p.id] || 0}</td>
+                  <td>{referralCounts[p.id] ? <span className="chip chip-gold">{referralCounts[p.id]}</span> : '—'}</td>
                 </tr>
               )
             })}

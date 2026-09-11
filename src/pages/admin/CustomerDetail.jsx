@@ -16,6 +16,8 @@ export default function CustomerDetail() {
   const [wallet, setWallet] = useState(null)
   const [transactions, setTransactions] = useState([])
   const [orders, setOrders] = useState([])
+  const [referralsMade, setReferralsMade] = useState([])
+  const [referredBy, setReferredBy] = useState(null)
   const [tab, setTab] = useState('overview')
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState({ action: 'add', amount: '', reason: '' })
@@ -25,16 +27,22 @@ export default function CustomerDetail() {
 
   async function load() {
     setLoading(true)
-    const [profRes, walletRes, txRes, orderRes] = await Promise.all([
+    const [profRes, walletRes, txRes, orderRes, referralsMadeRes, referredByRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', id).maybeSingle(),
       supabase.from('wallets').select('*').eq('user_id', id).maybeSingle(),
       supabase.from('wallet_transactions').select('*').eq('user_id', id).order('created_at', { ascending: false }).limit(50),
-      supabase.from('orders').select('*').eq('user_id', id).order('created_at', { ascending: false }).limit(50)
+      supabase.from('orders').select('*').eq('user_id', id).order('created_at', { ascending: false }).limit(50),
+      // Everyone THIS customer has referred (they're the referrer).
+      supabase.from('referrals').select('*, referred:referred_id(username, email)').eq('referrer_id', id).order('created_at', { ascending: false }),
+      // Who referred THIS customer, if anyone (they're the one referred).
+      supabase.from('referrals').select('*, referrer:referrer_id(username, email)').eq('referred_id', id).maybeSingle()
     ])
     setProfile(profRes.data)
     setWallet(walletRes.data)
     setTransactions(txRes.data || [])
     setOrders(orderRes.data || [])
+    setReferralsMade(referralsMadeRes.data || [])
+    setReferredBy(referredByRes.data)
     setLoading(false)
   }
 
@@ -184,7 +192,25 @@ export default function CustomerDetail() {
           <div className="stat-label">Total Orders</div>
           <div className="stat-value">{orders.length}</div>
         </div>
+        <div className="stat-card">
+          <div className="stat-label">People Referred</div>
+          <div className="stat-value text-gold">{referralsMade.length}</div>
+        </div>
       </div>
+
+      {profile.referral_code && (
+        <p className="text-faint" style={{ fontSize: 11.5, marginBottom: 10 }}>
+          Referral code: <strong className="text-dim">{profile.referral_code}</strong>
+          {referredBy && (
+            <>
+              {' '}· Referred by <strong className="text-dim">{referredBy.referrer?.username || referredBy.referrer?.email || 'a deleted account'}</strong>
+              {' '}<span className={`chip ${referredBy.status === 'paid' ? 'chip-success' : referredBy.status === 'rejected' ? 'chip-danger' : 'chip-warning'}`} style={{ marginLeft: 4 }}>
+                {referredBy.status}
+              </span>
+            </>
+          )}
+        </p>
+      )}
 
       {isSuperAdmin ? (
         <button className="btn btn-primary" style={{ marginBottom: 10 }} onClick={openAdjustModal}>
@@ -202,7 +228,7 @@ export default function CustomerDetail() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {['overview', 'wallet', 'orders'].map((t) => (
+        {['overview', 'wallet', 'orders', 'referrals'].map((t) => (
           <button key={t} className={`chip ${tab === t ? 'chip-gold' : ''}`} style={{ border: 'none', cursor: 'pointer' }} onClick={() => setTab(t)}>
             {t}
           </button>
@@ -235,6 +261,22 @@ export default function CustomerDetail() {
               </div>
               <span className="chip chip-info">{o.status}</span>
               <span style={{ fontWeight: 700 }}>{formatCurrency(o.grand_total)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'referrals' && (
+        <div className="surface-card">
+          {referralsMade.length === 0 && <p className="text-faint" style={{ fontSize: 13 }}>Hasn't referred anyone yet.</p>}
+          {referralsMade.map((r) => (
+            <div key={r.id} className="list-row">
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{r.referred?.username || r.referred_email || '—'}</div>
+                <div className="text-faint" style={{ fontSize: 11 }}>Joined {formatDate(r.created_at)}</div>
+              </div>
+              <span className={`chip ${r.status === 'paid' ? 'chip-success' : r.status === 'rejected' ? 'chip-danger' : 'chip-warning'}`}>{r.status}</span>
+              {r.bonus_amount && <span style={{ fontWeight: 700 }}>{formatCurrency(r.bonus_amount)}</span>}
             </div>
           ))}
         </div>

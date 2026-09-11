@@ -20,6 +20,38 @@ export default function Login() {
   const [codeSent, setCodeSent] = useState(false)
   const [codeBusy, setCodeBusy] = useState(false)
 
+  // A referral link (?ref=CODE) already saves its code here automatically
+  // (see ReferralCapture.jsx) - this just gives someone who was told the
+  // raw code directly (not a tappable link) a place to type it in by
+  // hand. Either way it lands in the same spot, and AuthContext applies
+  // it once, right after the next successful login (see loadProfile()).
+  const [refCode, setRefCode] = useState('')
+  const [showRefCode, setShowRefCode] = useState(false)
+
+  useEffect(() => {
+    try {
+      const existing = localStorage.getItem('bhd_ref_code')
+      if (existing) {
+        setRefCode(existing)
+        setShowRefCode(true)
+      }
+    } catch {
+      // localStorage unavailable - the field just starts empty, no harm done.
+    }
+  }, [])
+
+  function handleRefCodeChange(value) {
+    const trimmed = value.trim().toUpperCase()
+    setRefCode(trimmed)
+    try {
+      if (trimmed) localStorage.setItem('bhd_ref_code', trimmed)
+      else localStorage.removeItem('bhd_ref_code')
+    } catch {
+      // localStorage unavailable - the code just won't be remembered for
+      // the claim step after login.
+    }
+  }
+
   // If an account was force-signed-out right after login (e.g. it's
   // suspended), AuthContext leaves a message here for us to show exactly
   // once, then clears it so it doesn't reappear on a later visit.
@@ -214,6 +246,32 @@ export default function Login() {
       )}
 
       {error && <div className="field-error" style={{ textAlign: 'center', marginTop: 12 }}>{error}</div>}
+
+      <div style={{ marginTop: 18, textAlign: 'center' }}>
+        {!showRefCode ? (
+          <button
+            type="button"
+            onClick={() => setShowRefCode(true)}
+            className="text-faint"
+            style={{ background: 'none', border: 'none', textDecoration: 'underline', fontSize: 12, cursor: 'pointer', padding: 0 }}
+          >
+            Have a referral code?
+          </button>
+        ) : (
+          <div style={{ textAlign: 'left' }}>
+            <span className="field-label">Referral code (optional)</span>
+            <input
+              value={refCode}
+              onChange={(e) => handleRefCodeChange(e.target.value)}
+              placeholder="e.g. 5CBF0AE5"
+              style={{ textTransform: 'uppercase' }}
+            />
+            <p className="text-faint" style={{ fontSize: 10.5, margin: '4px 0 0' }}>
+              Applied automatically after you sign in — only works for a brand new account.
+            </p>
+          </div>
+        )}
+      </div>
 
       <p className="text-faint" style={{ fontSize: 11, textAlign: 'center', marginTop: 22 }}>
         By continuing you agree to our{' '}
