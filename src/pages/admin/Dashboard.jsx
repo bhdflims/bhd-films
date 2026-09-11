@@ -35,12 +35,13 @@ export default function Dashboard() {
       setLoading(true)
       const { from } = filter === 'all' ? { from: null } : getRange(filter)
 
-      const [testProfilesRes, profilesRes, walletsRes, ordersRes, fundReqRes, recentOrdersRes, recentFundRes] = await Promise.all([
+      const [testProfilesRes, profilesRes, walletsRes, ordersRes, fundReqRes, txRes, recentOrdersRes, recentFundRes] = await Promise.all([
         supabase.from('profiles').select('id').eq('is_test_account', true),
         supabase.from('profiles').select('id, created_at'),
         supabase.from('wallets').select('user_id, available_fund, total_fund_added, total_fund_used'),
         supabase.from('orders').select('id, user_id, created_at'),
-        supabase.from('fund_requests').select('user_id, status'),
+        supabase.from('fund_requests').select('user_id, status, reviewed_at'),
+        supabase.from('wallet_transactions').select('user_id, type, amount, balance_before, balance_after, created_at'),
         supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(20),
         supabase.from('fund_requests').select('*').order('created_at', { ascending: false }).limit(20)
       ])
@@ -55,18 +56,54 @@ export default function Dashboard() {
       const totalCustomers = profiles.length
       const newCustomers = from ? profiles.filter((p) => p.created_at >= from).length : totalCustomers
 
+      // "Total Wallet Balance" is a live snapshot (how much money is sitting
+      // in wallets right now) so it intentionally ignores the Today/Week/
+      // Month toggle - a balance doesn't have a "this week" version.
       const wallets = (walletsRes.data || []).filter((w) => isReal(w.user_id))
       const totalBalance = wallets.reduce((s, w) => s + Number(w.available_fund), 0)
-      const totalAdded = wallets.reduce((s, w) => s + Number(w.total_fund_added), 0)
-      const totalUsed = wallets.reduce((s, w) => s + Number(w.total_fund_used), 0)
 
       const orders = (ordersRes.data || []).filter((o) => isReal(o.user_id))
       const totalOrders = from ? orders.filter((o) => o.created_at >= from).length : orders.length
 
+      // "Total Funds Added"/"Total Funds Used" USED to just sum each
+      // wallet's lifetime total_fund_added/total_fund_used column - which
+      // meant these two tiles silently showed the SAME all-time number no
+      // matter which tab (Today/Week/Month/All Time) was selected, while
+      // every other tile on this page actually changed. Now they're built
+      // from wallet_transactions instead, scoped to the selected period the
+      // same way Total Orders already was - a credit is anything that
+      // raised a wallet's balance (a "fund_added" transaction from an
+      // approved request, or a manual "add"/an upward "set" from Modify
+      // Fund), a debit is anything that lowered it (a "fund_used"
+      // transaction, or a "deduct"/downward "set"). Refund transactions are
+      // deliberately left out of both - they're money moving back after
+      // already being counted as "used", not a fresh addition.
+      const tx = (txRes.data || []).filter((t) => isReal(t.user_id) && (!from || t.created_at >= from))
+      let totalAdded = 0
+      let totalUsed = 0
+      for (const t of tx) {
+        if (t.type === 'fund_added') {
+          totalAdded += Number(t.amount)
+        } else if (t.type === 'fund_used') {
+          totalUsed += Number(t.amount)
+        } else if (t.type === 'adjustment') {
+          const delta = Number(t.balance_after) - Number(t.balance_before)
+          if (delta > 0) totalAdded += delta
+          else if (delta < 0) totalUsed += Math.abs(delta)
+        }
+      }
+
+      // Pending is a live queue depth ("how many need my attention right
+      // now"), not tied to when they were submitted, so - like Total
+      // Wallet Balance above - it intentionally stays unscoped. Approved/
+      // Rejected are scoped by reviewed_at (when the admin actually acted
+      // on it), not created_at, so "Approved Requests" on the Today tab
+      // means "approved today", matching what an admin actually remembers
+      // doing that day - not "submitted today AND happens to be approved".
       const fundStatuses = (fundReqRes.data || []).filter((r) => isReal(r.user_id))
       const pending = fundStatuses.filter((r) => ['pending', 'under_review', 'reupload_required'].includes(r.status)).length
-      const approved = fundStatuses.filter((r) => r.status === 'approved').length
-      const rejected = fundStatuses.filter((r) => r.status === 'rejected').length
+      const approved = fundStatuses.filter((r) => r.status === 'approved' && (!from || r.reviewed_at >= from)).length
+      const rejected = fundStatuses.filter((r) => r.status === 'rejected' && (!from || r.reviewed_at >= from)).length
 
       if (!mounted) return
       setStats({
