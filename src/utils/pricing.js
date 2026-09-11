@@ -29,6 +29,12 @@ export function getApplicableRate(service, tiers, quantity) {
 export function calculateServiceTotal(service, tiers, quantity) {
   const qty = Number(quantity) || 0
   const rate = getApplicableRate(service, tiers, qty)
+  // Fixed-price services (e.g. a YouTube Watch Time package) are sold as
+  // one flat package, not scaled by quantity - base_rate IS the price,
+  // full stop. Everything else keeps the per-1,000 convention above.
+  if (service.is_fixed_price) {
+    return { rate, total: Math.round(rate * 100) / 100 }
+  }
   return {
     rate,
     total: Math.round(((rate * qty) / 1000) * 100) / 100

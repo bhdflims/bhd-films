@@ -44,10 +44,10 @@ export default function ServiceCalculatorCard({
                   <span style={{ color: 'var(--gold-soft)', fontWeight: 700 }}>ID: {service.external_service_id}</span> ·{' '}
                 </>
               )}
-              {service.min_quantity}–{service.max_quantity} · {service.estimated_time_text}
+              {service.is_fixed_price ? 'Fixed package' : `${service.min_quantity}–${service.max_quantity}`} · {service.estimated_time_text}
             </div>
             <div className="text-faint" style={{ fontSize: 11, marginTop: 2 }}>
-              {formatRate(service.base_rate)} per 1000
+              {service.is_fixed_price ? `${formatCurrency(service.base_rate)} flat price` : `${formatRate(service.base_rate)} per 1000`}
             </div>
           </span>
         </span>
@@ -56,15 +56,23 @@ export default function ServiceCalculatorCard({
 
       {selected && (
         <div style={{ marginTop: 12 }}>
-          <span className="field-label">Quantity</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder={`e.g. ${service.min_quantity}`}
-            value={quantity}
-            onChange={(e) => onQuantityChange(e.target.value)}
-          />
-          {quantityError && <div className="field-error">{quantityError}</div>}
+          {service.is_fixed_price ? (
+            <p className="text-faint" style={{ fontSize: 12, margin: 0 }}>
+              This is a one-time fixed package — no quantity to enter.
+            </p>
+          ) : (
+            <>
+              <span className="field-label">Quantity</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder={`e.g. ${service.min_quantity}`}
+                value={quantity}
+                onChange={(e) => onQuantityChange(e.target.value)}
+              />
+              {quantityError && <div className="field-error">{quantityError}</div>}
+            </>
+          )}
 
           {service.requires_target_link && (
             <div style={{ marginTop: 10 }}>
@@ -82,7 +90,7 @@ export default function ServiceCalculatorCard({
           <div className="divider" />
           <div className="row-between" style={{ fontSize: 12.5 }}>
             <span className="text-dim">
-              {quantity || 0} units × {formatRate(rate)} / 1000
+              {service.is_fixed_price ? 'Package price' : `${quantity || 0} units × ${formatRate(rate)} / 1000`}
             </span>
             <span style={{ fontWeight: 800, color: 'var(--gold-soft)' }}>{formatCurrency(total)}</span>
           </div>

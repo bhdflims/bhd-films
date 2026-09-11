@@ -95,7 +95,9 @@ export default function RateControl() {
                     {svc.name}
                     {svc.external_service_id != null && <span className="text-faint" style={{ fontWeight: 400 }}> (ID: {svc.external_service_id})</span>}
                   </div>
-                  <div className="text-faint" style={{ fontSize: 11 }}>{categoryName(svc.category_id)} · current: {formatRate(svc.base_rate)} / 1000</div>
+                  <div className="text-faint" style={{ fontSize: 11 }}>
+                    {categoryName(svc.category_id)} · current: {formatRate(svc.base_rate)}{svc.is_fixed_price ? ' (flat package price)' : ' / 1000'}
+                  </div>
                 </div>
                 <button className="icon-btn" onClick={() => toggleHistory(svc)}>
                   {expanded === svc.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

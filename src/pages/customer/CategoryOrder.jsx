@@ -291,7 +291,15 @@ export default function CategoryOrder() {
                         ? targetLinkErrorMessage(s.target_platform)
                         : null
                     }
-                    onToggle={() => updateSelection(s.id, { selected: !state.selected })}
+                    onToggle={() =>
+                      updateSelection(s.id, {
+                        selected: !state.selected,
+                        // Fixed-price services (e.g. a Watch Time package)
+                        // have no quantity input, so lock it to 1 the
+                        // moment the card is selected.
+                        quantity: s.is_fixed_price ? 1 : state.quantity
+                      })
+                    }
                     onQuantityChange={(v) => updateSelection(s.id, { quantity: v })}
                     onLinkChange={(v) => updateSelection(s.id, { targetLink: v })}
                   />
@@ -313,7 +321,9 @@ export default function CategoryOrder() {
                       <span className="text-faint"> (ID: {item.service.external_service_id})</span>
                     )}
                     <br />
-                    <span className="text-faint">{item.quantity || 0} units × {formatRate(item.rate)} / 1000</span>
+                    <span className="text-faint">
+                      {item.service.is_fixed_price ? 'Fixed package price' : `${item.quantity || 0} units × ${formatRate(item.rate)} / 1000`}
+                    </span>
                   </span>
                   <span style={{ fontWeight: 700, flexShrink: 0 }}>{formatCurrency(item.total)}</span>
                 </div>

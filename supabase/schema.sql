@@ -70,6 +70,11 @@ create table public.services (
   description text,
   external_service_id int not null unique,
   service_group text,
+  -- Fixed-price services (e.g. a YouTube Watch Time package) are sold as
+  -- ONE flat package, not scaled by quantity - base_rate IS the price,
+  -- and min/max_quantity are locked to 1/1. Everything else keeps the
+  -- normal per-1,000 convention.
+  is_fixed_price boolean not null default false,
   min_quantity int not null default 100 check (min_quantity > 0),
   max_quantity int not null default 100000 check (max_quantity >= min_quantity),
   base_rate numeric(12,4) not null default 0 check (base_rate >= 0),
@@ -163,13 +168,17 @@ create table public.orders (
 );
 
 -- One row per service inside an order, with the HISTORICAL rate applied.
--- applied_rate is per 1,000 (same convention as services.base_rate).
+-- applied_rate is per 1,000 (same convention as services.base_rate) UNLESS
+-- is_fixed_price_snapshot is true, in which case applied_rate IS the flat
+-- package price. Snapshotted (not read live) so a later change to the
+-- service's pricing mode never rewrites how an old order is displayed.
 create table public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
   service_id uuid references public.services(id) on delete set null,
   service_name_snapshot text not null,
   service_external_id_snapshot int,
+  is_fixed_price_snapshot boolean not null default false,
   target_link text,
   quantity int not null,
   applied_rate numeric(12,4) not null,
@@ -1449,7 +1458,7 @@ begin
   end if;
 
   create temporary table if not exists tmp_order_items (
-    service_id uuid, service_name text, service_external_id int, target_link text, quantity int, applied_rate numeric, item_total numeric
+    service_id uuid, service_name text, service_external_id int, is_fixed_price boolean, target_link text, quantity int, applied_rate numeric, item_total numeric
   ) on commit drop;
   delete from tmp_order_items where true;
 
@@ -1490,12 +1499,19 @@ begin
     end if;
 
     -- v_rate is the CUSTOMER RATE PER 1,000 units, so the charge for this
-    -- line is (rate / 1000) * quantity, not rate * quantity.
-    v_item_total := round(v_rate * v_qty / 1000, 2);
+    -- line is (rate / 1000) * quantity, not rate * quantity - UNLESS this
+    -- is a fixed-price package (e.g. YouTube Watch Time), where v_rate
+    -- IS the flat price regardless of quantity (quantity is locked to 1
+    -- by the service's own min/max_quantity = 1/1).
+    if v_service.is_fixed_price then
+      v_item_total := round(v_rate, 2);
+    else
+      v_item_total := round(v_rate * v_qty / 1000, 2);
+    end if;
     v_grand_total := v_grand_total + v_item_total;
 
-    insert into tmp_order_items(service_id, service_name, service_external_id, target_link, quantity, applied_rate, item_total)
-    values (v_service.id, v_service.name, v_service.external_service_id, v_target, v_qty, v_rate, v_item_total);
+    insert into tmp_order_items(service_id, service_name, service_external_id, is_fixed_price, target_link, quantity, applied_rate, item_total)
+    values (v_service.id, v_service.name, v_service.external_service_id, v_service.is_fixed_price, v_target, v_qty, v_rate, v_item_total);
 
     if v_category_id is null then
       v_category_id := v_service.category_id;
@@ -1571,8 +1587,8 @@ begin
   values (v_order_code, v_user, v_category_id, v_category_name, v_grand_total, v_discount_amount, case when v_coupon_id is not null then v_coupon.code else null end, 'received', v_est_time, p_idempotency_key)
   returning id into v_order_id;
 
-  insert into public.order_items(order_id, service_id, service_name_snapshot, service_external_id_snapshot, target_link, quantity, applied_rate, item_total)
-  select v_order_id, service_id, service_name, service_external_id, target_link, quantity, applied_rate, item_total from tmp_order_items;
+  insert into public.order_items(order_id, service_id, service_name_snapshot, service_external_id_snapshot, is_fixed_price_snapshot, target_link, quantity, applied_rate, item_total)
+  select v_order_id, service_id, service_name, service_external_id, is_fixed_price, target_link, quantity, applied_rate, item_total from tmp_order_items;
 
   insert into public.wallet_transactions(wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id)
   values (

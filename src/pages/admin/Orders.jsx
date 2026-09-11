@@ -106,7 +106,9 @@ export default function Orders() {
                           <strong className="text-gold"> (ID: {item.service_external_id_snapshot})</strong>
                         )}
                         <br />
-                        <span className="text-faint">Qty {item.quantity} × {formatRate(item.applied_rate)} / 1000</span>
+                        <span className="text-faint">
+                          {item.is_fixed_price_snapshot ? 'Fixed package price' : `Qty ${item.quantity} × ${formatRate(item.applied_rate)} / 1000`}
+                        </span>
                       </span>
                       <span style={{ flexShrink: 0 }}>{formatCurrency(item.item_total)}</span>
                     </div>

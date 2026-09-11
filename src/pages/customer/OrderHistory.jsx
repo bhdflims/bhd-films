@@ -166,7 +166,7 @@ export default function OrderHistory() {
                         <span>{formatCurrency(item.item_total)}</span>
                       </div>
                       <div className="text-faint" style={{ fontSize: 11 }}>
-                        Qty {item.quantity} × {formatRate(item.applied_rate)} / 1000
+                        {item.is_fixed_price_snapshot ? 'Fixed package price' : `Qty ${item.quantity} × ${formatRate(item.applied_rate)} / 1000`}
                       </div>
                       {item.target_link && (
                         <div className="text-faint" style={{ fontSize: 11, wordBreak: 'break-all' }}>

@@ -16,6 +16,7 @@ const EMPTY = {
   min_quantity: 100,
   max_quantity: 100000,
   base_rate: 0,
+  is_fixed_price: false,
   requires_target_link: true,
   target_platform: 'custom',
   estimated_time_text: '3-5 minutes',
@@ -82,9 +83,12 @@ export default function Services() {
       description: form.description || null,
       external_service_id: Number(form.external_service_id),
       service_group: form.service_group?.trim() || null,
-      min_quantity: Number(form.min_quantity),
-      max_quantity: Number(form.max_quantity),
+      // Fixed-price services (e.g. a Watch Time package) are always
+      // exactly quantity 1 - base_rate IS the price, not a per-1000 rate.
+      min_quantity: form.is_fixed_price ? 1 : Number(form.min_quantity),
+      max_quantity: form.is_fixed_price ? 1 : Number(form.max_quantity),
       base_rate: Number(form.base_rate),
+      is_fixed_price: !!form.is_fixed_price,
       requires_target_link: !!form.requires_target_link,
       target_platform: form.target_platform,
       estimated_time_text: form.estimated_time_text || '3-5 minutes',
@@ -156,7 +160,8 @@ export default function Services() {
                 )}
               </div>
               <div className="text-faint" style={{ fontSize: 11 }}>
-                {categoryName(svc.category_id)}{svc.service_group ? ` · ${svc.service_group}` : ''} · {svc.min_quantity}–{svc.max_quantity} · {formatRate(svc.base_rate)}/1000
+                {categoryName(svc.category_id)}{svc.service_group ? ` · ${svc.service_group}` : ''} ·{' '}
+                {svc.is_fixed_price ? `${formatRate(svc.base_rate)} flat package` : `${svc.min_quantity}–${svc.max_quantity} · ${formatRate(svc.base_rate)}/1000`}
               </div>
             </div>
             {svc.is_popular && <span className="chip chip-gold">Popular</span>}
@@ -201,18 +206,29 @@ export default function Services() {
             <span className="field-label">Description</span>
             <textarea rows={2} value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
-          <div className="grid-2" style={{ marginBottom: 10 }}>
-            <div>
-              <span className="field-label">Minimum Quantity</span>
-              <input type="number" value={form.min_quantity} onChange={(e) => setForm({ ...form, min_quantity: e.target.value })} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <input
+              type="checkbox"
+              style={{ width: 18, height: 18 }}
+              checked={form.is_fixed_price}
+              onChange={(e) => setForm({ ...form, is_fixed_price: e.target.checked })}
+            />
+            Fixed-price package (e.g. YouTube Watch Time) — sold as one flat package, not scaled by quantity
+          </label>
+          {!form.is_fixed_price && (
+            <div className="grid-2" style={{ marginBottom: 10 }}>
+              <div>
+                <span className="field-label">Minimum Quantity</span>
+                <input type="number" value={form.min_quantity} onChange={(e) => setForm({ ...form, min_quantity: e.target.value })} />
+              </div>
+              <div>
+                <span className="field-label">Maximum Quantity</span>
+                <input type="number" value={form.max_quantity} onChange={(e) => setForm({ ...form, max_quantity: e.target.value })} />
+              </div>
             </div>
-            <div>
-              <span className="field-label">Maximum Quantity</span>
-              <input type="number" value={form.max_quantity} onChange={(e) => setForm({ ...form, max_quantity: e.target.value })} />
-            </div>
-          </div>
+          )}
           <div style={{ marginBottom: 10 }}>
-            <span className="field-label">Base Rate (₹ per 1000)</span>
+            <span className="field-label">{form.is_fixed_price ? 'Package Price (₹, flat)' : 'Base Rate (₹ per 1000)'}</span>
             <input type="number" step="0.0001" value={form.base_rate} onChange={(e) => setForm({ ...form, base_rate: e.target.value })} />
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
