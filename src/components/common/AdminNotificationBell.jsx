@@ -21,6 +21,14 @@ export default function AdminNotificationBell() {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [counts, setCounts] = useState({ orders: 0, funds: 0, refunds: 0, support: 0 })
+  // AdminLayout renders this component twice at once (the mobile topbar
+  // copy and the desktop sidebar copy both sit in the DOM together, just
+  // toggled by CSS, not by conditional rendering) - a shared, hardcoded
+  // channel name would mean two Supabase realtime channels opening under
+  // the exact same name at the same time, which is invalid and was
+  // crashing the admin panel right after login. Each mounted copy now
+  // gets its own unique channel name instead.
+  const [channelName] = useState(() => `admin-notification-bell-${Math.random().toString(36).slice(2)}`)
 
   useEffect(() => {
     async function loadAll() {
@@ -41,7 +49,7 @@ export default function AdminNotificationBell() {
     loadAll()
 
     const channel = supabase
-      .channel('admin-notification-bell')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'fund_requests' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'refund_requests' }, loadAll)
@@ -51,7 +59,7 @@ export default function AdminNotificationBell() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [channelName])
 
   const total = counts.orders + counts.funds + counts.refunds + counts.support
 
