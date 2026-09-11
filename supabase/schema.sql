@@ -138,7 +138,15 @@ create table public.fund_requests (
   reviewed_by uuid references auth.users(id),
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Set only when an ADMIN entered this on the customer's behalf (their
+  -- own receipt upload failed, so they sent the admin a screenshot
+  -- directly, e.g. over WhatsApp) instead of the customer submitting it
+  -- themselves through the app. admin_submission_note is the admin's own
+  -- context for why, kept visible even after the request is reviewed
+  -- (unlike admin_remark, which gets overwritten by the review action).
+  submitted_by_admin_id uuid references auth.users(id),
+  admin_submission_note text
 );
 
 -- Every receipt ever uploaded for a fund request (never deleted).
@@ -1045,6 +1053,59 @@ end;
 $$;
 
 grant execute on function public.admin_review_fund_request(uuid, text, text) to authenticated;
+
+-- Fallback for the (rare) case where a customer's OWN receipt upload
+-- keeps failing on their phone - they send the admin the payment
+-- screenshot directly (e.g. over WhatsApp), and the admin records it
+-- here on the customer's behalf. This creates a normal PENDING fund
+-- request, identical in every way to one the customer submitted
+-- themselves (same notification to every admin, same Fund Requests
+-- queue, same admin_review_fund_request() approval step required before
+-- any money moves) - it's just a second way to get a request INTO that
+-- trusted queue, not a shortcut around reviewing/approving it.
+create or replace function public.admin_create_fund_request_for_customer(
+  p_user_id uuid,
+  p_amount numeric,
+  p_receipt_path text,
+  p_note text default null
+)
+returns json
+language plpgsql security definer set search_path = public as $$
+declare
+  v_admin uuid := auth.uid();
+  v_request_id uuid;
+  v_code text;
+begin
+  if not public.has_permission('manage_fund_requests') then
+    raise exception 'Not authorized.';
+  end if;
+  if p_user_id is null or not exists (select 1 from public.profiles where id = p_user_id) then
+    raise exception 'Customer not found.';
+  end if;
+  if p_amount is null or p_amount <= 0 then
+    raise exception 'Please enter a valid amount.';
+  end if;
+  if p_receipt_path is null or length(trim(p_receipt_path)) = 0 then
+    raise exception 'Please upload the payment screenshot.';
+  end if;
+
+  v_code := public.generate_code('FR');
+
+  insert into public.fund_requests(request_code, user_id, amount, status, attempt_number, submitted_by_admin_id, admin_submission_note)
+  values (v_code, p_user_id, p_amount, 'pending', 1, v_admin, nullif(trim(coalesce(p_note, '')), ''))
+  returning id into v_request_id;
+
+  insert into public.fund_request_receipts(fund_request_id, storage_path, attempt_number)
+  values (v_request_id, p_receipt_path, 1);
+
+  perform public.write_audit_log('fund_request_created_by_admin', 'fund_request', v_request_id::text,
+    '{}'::jsonb, jsonb_build_object('user_id', p_user_id, 'amount', p_amount), p_note);
+
+  return json_build_object('id', v_request_id, 'request_code', v_code);
+end;
+$$;
+
+grant execute on function public.admin_create_fund_request_for_customer(uuid, numeric, text, text) to authenticated;
 
 -- Customer creates a refund request. They can only ever request
 -- "wallet" as far as they're concerned - the amount is always exactly

@@ -47,6 +47,19 @@ with check (
   and (storage.foldername(name))[1] = auth.uid()::text
 );
 
+-- Lets an admin upload a payment screenshot into a CUSTOMER's own folder
+-- on their behalf (see admin_create_fund_request_for_customer()) - for
+-- when the customer's own upload keeps failing and they send the admin
+-- the screenshot directly instead. RLS policies for the same command
+-- are OR'd together, so this sits alongside the customer's own-folder
+-- policy above rather than replacing it.
+create policy "receipts_insert_admin_on_behalf"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'receipts'
+  and public.is_admin()
+);
+
 create policy "receipts_select_own_or_admin"
 on storage.objects for select to authenticated
 using (

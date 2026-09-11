@@ -148,7 +148,7 @@ export default function PaymentQR() {
 
       <div style={{ marginTop: 18 }}>
         <span className="field-label">Upload Payment Receipt</span>
-        <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} />
         {file && <p className="text-dim" style={{ fontSize: 11.5, marginTop: 6 }}>{file.name}</p>}
         {error && <div className="field-error">{error}</div>}
       </div>

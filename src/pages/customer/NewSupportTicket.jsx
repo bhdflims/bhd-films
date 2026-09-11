@@ -487,7 +487,7 @@ function AttachmentField({ label = 'Upload screenshot / attachment (optional)', 
       ) : (
         <label className="btn btn-secondary" style={{ display: 'inline-flex', cursor: 'pointer' }}>
           <Upload size={15} /> Choose File
-          <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
         </label>
       )}
     </div>

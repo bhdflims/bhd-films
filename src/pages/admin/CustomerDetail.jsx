@@ -19,6 +19,7 @@ export default function CustomerDetail() {
   const [form, setForm] = useState({ action: 'add', amount: '', reason: '' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
   async function load() {
     setLoading(true)
@@ -40,6 +41,12 @@ export default function CustomerDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  useEffect(() => {
+    if (!successMsg) return
+    const t = setTimeout(() => setSuccessMsg(''), 6000)
+    return () => clearTimeout(t)
+  }, [successMsg])
+
   async function toggleStatus() {
     const newStatus = profile.account_status === 'active' ? 'suspended' : 'active'
     await supabase.from('profiles').update({ account_status: newStatus }).eq('id', id)
@@ -49,6 +56,21 @@ export default function CustomerDetail() {
   async function toggleTestAccount() {
     await supabase.from('profiles').update({ is_test_account: !profile.is_test_account }).eq('id', id)
     load()
+  }
+
+  // Opens the modal AND resets the form back to defaults every time -
+  // without this, if an admin had previously picked "Deduct Fund" or
+  // "Set Balance To" for a different adjustment (even one they cancelled
+  // out of without confirming), that selection silently stuck around the
+  // next time they opened this same modal. Typing "50" meaning to ADD
+  // funds while the dropdown was still quietly sitting on "Deduct" or
+  // "Set Balance To" would actually deduct, or overwrite the balance -
+  // this is very likely why a manual "add ₹50" didn't show up as +₹50.
+  function openAdjustModal() {
+    setForm({ action: 'add', amount: '', reason: '' })
+    setError('')
+    setSuccessMsg('')
+    setModalOpen(true)
   }
 
   async function submitAdjustment() {
@@ -62,7 +84,7 @@ export default function CustomerDetail() {
       return
     }
     setBusy(true)
-    const { error: err } = await supabase.rpc('admin_adjust_wallet', {
+    const { data, error: err } = await supabase.rpc('admin_adjust_wallet', {
       p_user_id: id,
       p_action: form.action,
       p_amount: Number(form.amount),
@@ -75,6 +97,14 @@ export default function CustomerDetail() {
     }
     setModalOpen(false)
     setForm({ action: 'add', amount: '', reason: '' })
+    // Confirms exactly what happened, in plain terms, so it's obvious the
+    // change actually went through instead of the admin having to eyeball
+    // the stat tile and wonder if it updated.
+    setSuccessMsg(
+      data
+        ? `Done — balance is now ${formatCurrency(data.new_balance)} (was ${formatCurrency(data.previous_balance)}).`
+        : 'Done — wallet updated.'
+    )
     load()
   }
 
@@ -133,9 +163,14 @@ export default function CustomerDetail() {
         </div>
       </div>
 
-      <button className="btn btn-primary" style={{ marginBottom: 18 }} onClick={() => setModalOpen(true)}>
+      <button className="btn btn-primary" style={{ marginBottom: 10 }} onClick={openAdjustModal}>
         <WalletIcon size={16} /> Modify Fund
       </button>
+      {successMsg && (
+        <div className="text-success" style={{ fontSize: 12.5, marginBottom: 12, fontWeight: 600 }}>
+          {successMsg}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         {['overview', 'wallet', 'orders'].map((t) => (
