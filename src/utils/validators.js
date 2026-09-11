@@ -5,8 +5,16 @@
 
 const PATTERNS = {
   instagram: /^https?:\/\/(www\.)?instagram\.com\/.+/i,
-  facebook: /^https?:\/\/(www\.)?(facebook|fb)\.com\/.+/i,
-  tiktok: /^https?:\/\/(www\.|vm\.|m\.)?tiktok\.com\/.+/i,
+  // fb.watch is Facebook's own share-link domain for video posts (same
+  // idea as TikTok's vm./vt. links below) - needs accepting alongside the
+  // plain facebook.com/fb.com links.
+  facebook: /^https?:\/\/(www\.)?(facebook\.com|fb\.com|fb\.watch)\/.+/i,
+  // vm./vt. are TikTok's own short-share-link subdomains (what the app's
+  // native "Share" button actually gives you), m. is the mobile site -
+  // all 3 need to be accepted alongside the plain tiktok.com/@user/video/…
+  // links, or a customer pasting a real link off their phone gets wrongly
+  // rejected.
+  tiktok: /^https?:\/\/(www\.|vm\.|vt\.|m\.)?tiktok\.com\/.+/i,
   youtube: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\/.+/i,
   twitter: /^https?:\/\/(www\.)?(twitter\.com|x\.com)\/.+/i,
   telegram: /^https?:\/\/(www\.)?(t\.me|telegram\.me)\/.+/i,
