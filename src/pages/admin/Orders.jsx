@@ -106,8 +106,18 @@ export default function Orders() {
                           <strong className="text-gold"> (ID: {item.service_external_id_snapshot})</strong>
                         )}
                         <br />
-                        <span className="text-faint">
-                          {item.is_fixed_price_snapshot ? 'Fixed package price' : `Qty ${item.quantity} × ${formatRate(item.applied_rate)} / 1000`}
+                        <span className="text-faint" style={{ display: 'block', marginTop: 3, lineHeight: 1.7 }}>
+                          {item.is_fixed_price_snapshot ? (
+                            'Fixed one-time package price (no quantity involved)'
+                          ) : (
+                            <>
+                              Quantity ordered: <strong style={{ color: 'var(--text)' }}>{item.quantity}</strong>
+                              <br />
+                              Rate: <strong style={{ color: 'var(--text)' }}>{formatRate(item.applied_rate)}</strong> per 1,000 units
+                              {' = '}
+                              <strong className="text-gold">{formatCurrency(item.item_total)}</strong> charged
+                            </>
+                          )}
                         </span>
                       </span>
                       <span style={{ flexShrink: 0 }}>{formatCurrency(item.item_total)}</span>

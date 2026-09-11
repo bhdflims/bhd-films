@@ -165,8 +165,18 @@ export default function OrderHistory() {
                         </span>
                         <span>{formatCurrency(item.item_total)}</span>
                       </div>
-                      <div className="text-faint" style={{ fontSize: 11 }}>
-                        {item.is_fixed_price_snapshot ? 'Fixed package price' : `Qty ${item.quantity} × ${formatRate(item.applied_rate)} / 1000`}
+                      <div className="text-faint" style={{ fontSize: 11, lineHeight: 1.7 }}>
+                        {item.is_fixed_price_snapshot ? (
+                          'Fixed one-time package price (no quantity involved)'
+                        ) : (
+                          <>
+                            Quantity ordered: <strong style={{ color: 'var(--text)' }}>{item.quantity}</strong>
+                            <br />
+                            Rate: <strong style={{ color: 'var(--text)' }}>{formatRate(item.applied_rate)}</strong> per 1,000 units
+                            {' = '}
+                            <strong className="text-gold">{formatCurrency(item.item_total)}</strong> charged
+                          </>
+                        )}
                       </div>
                       {item.target_link && (
                         <div className="text-faint" style={{ fontSize: 11, wordBreak: 'break-all' }}>
