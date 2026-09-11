@@ -136,6 +136,11 @@ export default function Dashboard() {
           const delta = Number(t.balance_after) - Number(t.balance_before)
           if (delta > 0) totalAdded += delta
           else if (delta < 0) totalUsed += Math.abs(delta)
+        } else if (t.type === 'referral_bonus') {
+          // A referral bonus is still a credit that raised the wallet's
+          // balance, same as an admin's upward "adjustment" - it's just
+          // paid automatically by the system instead of by an admin.
+          totalAdded += Number(t.amount)
         }
       }
 

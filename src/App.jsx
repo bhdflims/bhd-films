@@ -9,6 +9,7 @@ import AdminRoute from './components/common/AdminRoute'
 import ManifestSwitcher from './components/common/ManifestSwitcher'
 import AdminHomeRedirect from './components/common/AdminHomeRedirect'
 import MaintenanceGate from './components/common/MaintenanceGate'
+import ReferralCapture from './components/common/ReferralCapture'
 
 import Home from './pages/customer/Home'
 import Services from './pages/customer/Services'
@@ -26,6 +27,7 @@ import NewSupportTicket from './pages/customer/NewSupportTicket'
 import SupportTicketDetail from './pages/customer/SupportTicketDetail'
 import About from './pages/customer/About'
 import Terms from './pages/customer/Terms'
+import ReferEarn from './pages/customer/ReferEarn'
 import Login from './pages/customer/Login'
 import OrderSuccess from './pages/customer/OrderSuccess'
 
@@ -52,6 +54,7 @@ import AdminUsers from './pages/admin/AdminUsers'
 import MaintenanceMode from './pages/admin/MaintenanceMode'
 import StorageCleanup from './pages/admin/StorageCleanup'
 import BrandDetails from './pages/admin/BrandDetails'
+import ReferralSettings from './pages/admin/ReferralSettings'
 
 export default function App() {
   return (
@@ -59,6 +62,7 @@ export default function App() {
       <InstallPromptProvider>
       <BrowserRouter>
         <ManifestSwitcher />
+        <ReferralCapture />
         <AdminHomeRedirect />
         <MaintenanceGate>
         <Routes>
@@ -94,6 +98,14 @@ export default function App() {
             />
             <Route path="/about" element={<About />} />
             <Route path="/terms" element={<Terms />} />
+            <Route
+              path="/refer"
+              element={
+                <ProtectedRoute>
+                  <ReferEarn />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/orders"
               element={
@@ -200,6 +212,7 @@ export default function App() {
                 AdminRoute.jsx) - reused here to make this page super_admin-only,
                 same restriction as Admin Users. */}
             <Route path="brand-details" element={<AdminRoute permission="manage_admins"><BrandDetails /></AdminRoute>} />
+            <Route path="referral-settings" element={<AdminRoute permission="manage_admins"><ReferralSettings /></AdminRoute>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

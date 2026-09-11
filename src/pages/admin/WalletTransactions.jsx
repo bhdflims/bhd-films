@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import { formatCurrency, formatDate } from '../../utils/format'
 
-const TYPES = ['fund_added', 'fund_used', 'adjustment', 'refund']
+const TYPES = ['fund_added', 'fund_used', 'adjustment', 'refund', 'referral_bonus']
 
 export default function WalletTransactions() {
   const [loading, setLoading] = useState(true)

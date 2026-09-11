@@ -10,14 +10,16 @@ const TYPE_LABEL = {
   fund_added: 'Fund Added',
   fund_used: 'Fund Used',
   adjustment: 'Adjustment',
-  refund: 'Refund'
+  refund: 'Refund',
+  referral_bonus: 'Referral Bonus'
 }
 
 const TYPE_CHIP = {
   fund_added: 'chip-success',
   fund_used: 'chip-info',
   adjustment: 'chip-warning',
-  refund: 'chip-gold'
+  refund: 'chip-gold',
+  referral_bonus: 'chip-gold'
 }
 
 export default function FundHistory() {

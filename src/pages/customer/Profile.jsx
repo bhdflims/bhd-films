@@ -13,7 +13,8 @@ import {
   X,
   BellRing,
   Download,
-  ScrollText
+  ScrollText,
+  Gift
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -26,6 +27,7 @@ const MENU = [
   { to: '/add-funds', label: 'Add Funds', icon: PlusCircle },
   { to: '/fund-history', label: 'Fund History', icon: History },
   { to: '/orders', label: 'My Orders', icon: ReceiptText },
+  { to: '/refer', label: 'Refer & Earn', icon: Gift },
   { to: '/support', label: 'Support', icon: LifeBuoy },
   { to: '/about', label: 'About Us', icon: Info },
   { to: '/terms', label: 'Terms & Conditions', icon: ScrollText }

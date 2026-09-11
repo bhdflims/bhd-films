@@ -26,6 +26,7 @@ create table public.profiles (
   phone text check (phone is null or phone ~ '^[0-9]{10}$'),
   account_status text not null default 'active' check (account_status in ('active','suspended')),
   is_test_account boolean not null default false, -- flip this on for an account you use to test features. Orders/wallet activity from it are excluded from Dashboard and Reports totals.
+  referral_code text unique, -- this customer's own shareable Refer & Earn code (see SECTION: REFERRAL PROGRAM)
   created_at timestamptz not null default now(),
   last_activity_at timestamptz not null default now()
 );
@@ -224,7 +225,7 @@ create table public.wallet_transactions (
   id uuid primary key default gen_random_uuid(),
   wallet_id uuid not null references public.wallets(id) on delete cascade,
   user_id uuid not null references public.profiles(id) on delete cascade,
-  type text not null check (type in ('fund_added','fund_used','adjustment','refund')),
+  type text not null check (type in ('fund_added','fund_used','adjustment','refund','referral_bonus')),
   amount numeric(12,2) not null,
   balance_before numeric(12,2) not null,
   balance_after numeric(12,2) not null,
@@ -388,6 +389,36 @@ create table public.brand_settings (
   updated_by uuid references auth.users(id)
 );
 
+-- SECTION: REFERRAL PROGRAM ("Refer & Earn") — see migration_020 for the
+-- full write-up of how this works end to end. Y/X/Z are all controlled
+-- from this one settings row (super_admin only); referrals is one row
+-- per successful referral link (referrer -> referred), written to only
+-- by claim_referral_code()/check_referral_qualification() below - never
+-- directly from the app.
+create table public.referral_settings (
+  id boolean primary key default true check (id),
+  is_enabled boolean not null default true,
+  min_fund_added numeric(12,2) not null default 200,   -- Y: cumulative fund added by the referred customer
+  min_order_amount numeric(12,2) not null default 100,  -- X: cumulative order value placed by the referred customer
+  bonus_amount numeric(12,2) not null default 31,       -- Z: rupees paid to the referrer
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
+create table public.referrals (
+  id uuid primary key default gen_random_uuid(),
+  referrer_id uuid not null references public.profiles(id) on delete cascade,
+  referred_id uuid not null unique references public.profiles(id) on delete cascade,
+  referred_email text,
+  referral_code_used text,
+  status text not null default 'pending' check (status in ('pending','qualified','paid')),
+  bonus_amount numeric(12,2),
+  qualified_at timestamptz,
+  paid_at timestamptz,
+  created_at timestamptz not null default now(),
+  constraint referrals_no_self_referral check (referrer_id <> referred_id)
+);
+
 -- One QR code picture per add-funds amount, fully admin-controlled.
 -- amount = a specific preset (e.g. 100, 500, 1000) shows that exact QR.
 -- amount = null is the fallback/default QR shown for a custom amount that
@@ -446,6 +477,7 @@ create index idx_tiers_service on public.service_price_tiers (service_id);
 create index idx_rate_history_service on public.rate_history (service_id);
 create index idx_wallet_tx_user on public.wallet_transactions (user_id, created_at desc);
 create index idx_wallet_tx_wallet on public.wallet_transactions (wallet_id);
+create index idx_referrals_referrer on public.referrals (referrer_id);
 create index idx_fund_requests_user on public.fund_requests (user_id, created_at desc);
 create index idx_fund_requests_status on public.fund_requests (status);
 create index idx_receipts_request on public.fund_request_receipts (fund_request_id);
@@ -543,6 +575,23 @@ language sql volatile as $$
   select prefix || '-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 $$;
 
+-- A customer's own shareable Refer & Earn code. Loops until it lands on
+-- one that's not already taken (astronomically unlikely to loop more
+-- than once, but checked properly rather than assumed).
+create or replace function public.generate_referral_code()
+returns text
+language plpgsql volatile as $$
+declare
+  v_code text;
+begin
+  loop
+    v_code := upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
+    exit when not exists (select 1 from public.profiles where referral_code = v_code);
+  end loop;
+  return v_code;
+end;
+$$;
+
 -- Re-implements the exact same target-link rules as the frontend
 -- (src/utils/validators.js) so the server never trusts the client.
 create or replace function public.validate_target_link(p_platform text, p_url text)
@@ -608,8 +657,12 @@ begin
   v_username := lower(regexp_replace(coalesce(split_part(new.email, '@', 1), 'user'), '[^a-zA-Z0-9_]', '', 'g'))
                 || '_' || substr(replace(new.id::text, '-', ''), 1, 6);
 
-  insert into public.profiles(id, username, full_name, email)
-  values (new.id, v_username, coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', split_part(new.email,'@',1)), new.email)
+  insert into public.profiles(id, username, full_name, email, referral_code)
+  values (
+    new.id, v_username,
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', split_part(new.email,'@',1)),
+    new.email, public.generate_referral_code()
+  )
   on conflict (id) do nothing;
 
   insert into public.wallets(user_id) values (new.id)
@@ -639,6 +692,7 @@ create trigger trg_payment_settings_updated before update on public.payment_sett
 create trigger trg_site_settings_updated before update on public.site_settings for each row execute function public.set_updated_at();
 create trigger trg_payment_qr_codes_updated before update on public.payment_qr_codes for each row execute function public.set_updated_at();
 create trigger trg_brand_settings_updated before update on public.brand_settings for each row execute function public.set_updated_at();
+create trigger trg_referral_settings_updated before update on public.referral_settings for each row execute function public.set_updated_at();
 
 -- =====================================================================
 -- SECTION 6: PROFILE PROTECTION (customers cannot self-promote / self-unsuspend)
@@ -849,6 +903,18 @@ $$;
 create trigger trg_brand_settings_audit
   after update on public.brand_settings
   for each row execute function public.log_brand_settings_audit();
+
+create or replace function public.log_referral_settings_audit()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.write_audit_log('referral_settings_changed','referral_settings','main', to_jsonb(old), to_jsonb(new));
+  return new;
+end;
+$$;
+
+create trigger trg_referral_settings_audit
+  after update on public.referral_settings
+  for each row execute function public.log_referral_settings_audit();
 
 create or replace function public.log_payment_qr_audit()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -1073,6 +1139,8 @@ begin
 
     perform public.write_audit_log('fund_approved','fund_request', v_fr.id::text,
       jsonb_build_object('status', v_fr.status), jsonb_build_object('status','approved','amount', v_fr.amount), v_final_remark);
+
+    perform public.check_referral_qualification(v_fr.user_id);
 
   elsif p_action = 'reject' then
     v_final_remark := coalesce(nullif(trim(p_remark), ''), 'Payment could not be verified.');
@@ -1547,6 +1615,142 @@ $$;
 
 grant execute on function public.validate_coupon(text, numeric) to authenticated;
 
+-- =====================================================================
+-- REFERRAL PROGRAM ("Refer & Earn") RPCs
+-- =====================================================================
+
+-- Called once, right after a customer's very first login, if they
+-- arrived via a referral link (see src/context/AuthContext.jsx and
+-- src/components/common/ReferralCapture.jsx on the frontend).
+create or replace function public.claim_referral_code(p_code text)
+returns json
+language plpgsql security definer set search_path = public as $$
+declare
+  v_user uuid := auth.uid();
+  v_code text := upper(trim(coalesce(p_code, '')));
+  v_referrer uuid;
+  v_has_activity boolean;
+begin
+  if v_user is null then
+    raise exception 'You must be logged in.';
+  end if;
+  if length(v_code) = 0 then
+    return json_build_object('status','invalid_code');
+  end if;
+
+  -- One referral per person, ever. Calling this again after a person is
+  -- already linked (or already tried and failed) is always safe - it
+  -- just reports back what already happened instead of raising.
+  if exists (select 1 from public.referrals where referred_id = v_user) then
+    return json_build_object('status','already_claimed');
+  end if;
+
+  select id into v_referrer from public.profiles where referral_code = v_code;
+  if v_referrer is null then
+    return json_build_object('status','invalid_code');
+  end if;
+  if v_referrer = v_user then
+    return json_build_object('status','self_referral');
+  end if;
+
+  -- Only a genuinely fresh account (no wallet activity, no orders yet)
+  -- can ever be linked as someone's referral. This is what enforces
+  -- "new signups only, going forward" - an existing, already-active
+  -- customer can never be pulled in as someone's referral after the fact.
+  select exists(select 1 from public.wallet_transactions where user_id = v_user)
+      or exists(select 1 from public.orders where user_id = v_user)
+    into v_has_activity;
+  if v_has_activity then
+    return json_build_object('status','not_eligible');
+  end if;
+
+  begin
+    insert into public.referrals(referrer_id, referred_id, referred_email, referral_code_used, status)
+    select v_referrer, v_user, email, v_code, 'pending' from public.profiles where id = v_user;
+  exception when unique_violation then
+    return json_build_object('status','already_claimed');
+  end;
+
+  return json_build_object('status', 'ok');
+end;
+$$;
+
+grant execute on function public.claim_referral_code(text) to authenticated;
+
+-- Internal only (never granted to authenticated) - called from
+-- place_order() and admin_review_fund_request()'s approve branch every
+-- time either happens, for whoever the customer is. Cheap no-op unless
+-- that customer is someone's still-pending referral AND both thresholds
+-- are now met, in which case the referrer is paid immediately.
+create or replace function public.check_referral_qualification(p_user_id uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_ref public.referrals%rowtype;
+  v_settings public.referral_settings%rowtype;
+  v_total_added numeric;
+  v_total_orders numeric;
+  v_wallet public.wallets%rowtype;
+  v_before numeric;
+  v_after numeric;
+begin
+  select * into v_ref from public.referrals where referred_id = p_user_id and status = 'pending' for update;
+  if v_ref.id is null then
+    return; -- this person was never referred, or is already qualified/paid
+  end if;
+
+  select * into v_settings from public.referral_settings where id = true;
+  if v_settings is null or not v_settings.is_enabled then
+    return;
+  end if;
+
+  -- Y: only counts real approved deposits (type = 'fund_added'), never a
+  -- manual admin wallet adjustment - so a "Modify Fund" credit on the
+  -- Customer Detail page can never accidentally trigger a referral payout.
+  select coalesce(sum(amount), 0) into v_total_added
+    from public.wallet_transactions where user_id = p_user_id and type = 'fund_added';
+
+  -- X: cumulative value of everything they've ordered, excluding orders
+  -- that were cancelled or refunded.
+  select coalesce(sum(grand_total - discount_amount), 0) into v_total_orders
+    from public.orders where user_id = p_user_id and status not in ('cancelled','refunded');
+
+  if v_total_added < v_settings.min_fund_added or v_total_orders < v_settings.min_order_amount then
+    return; -- not there yet
+  end if;
+
+  select * into v_wallet from public.wallets where user_id = v_ref.referrer_id for update;
+  if v_wallet is null then
+    return;
+  end if;
+
+  v_before := v_wallet.available_fund;
+  v_after := v_before + v_settings.bonus_amount;
+
+  update public.wallets
+  set available_fund = v_after, total_fund_added = total_fund_added + v_settings.bonus_amount, updated_at = now()
+  where id = v_wallet.id;
+
+  insert into public.wallet_transactions(wallet_id, user_id, type, amount, balance_before, balance_after, status, remark)
+  values (
+    v_wallet.id, v_ref.referrer_id, 'referral_bonus', v_settings.bonus_amount, v_before, v_after, 'completed',
+    'Referral bonus - the person you referred added funds and placed an order.'
+  );
+
+  update public.referrals
+  set status = 'paid', bonus_amount = v_settings.bonus_amount, qualified_at = now(), paid_at = now()
+  where id = v_ref.id;
+
+  insert into public.notifications(user_id, title, message, type)
+  values (v_ref.referrer_id, 'Referral Bonus Received', 'You earned ₹' || v_settings.bonus_amount || ' for your referral!', 'wallet');
+  perform public.notify_user(v_ref.referrer_id, 'Referral Bonus 🎉', 'You earned ₹' || v_settings.bonus_amount || ' for your referral!', '/refer');
+
+  perform public.write_audit_log('referral_bonus_paid','referral', v_ref.id::text,
+    jsonb_build_object('status','pending'),
+    jsonb_build_object('status','paid','bonus_amount', v_settings.bonus_amount, 'referrer_id', v_ref.referrer_id, 'referred_id', p_user_id));
+end;
+$$;
+
 -- THE core secure checkout function. Recalculates everything server-side,
 -- never trusts a price (or a coupon discount) sent from the browser.
 -- p_items example: [{"service_id":"...", "quantity":1000, "target_link":"https://instagram.com/x"}]
@@ -1755,6 +1959,8 @@ begin
 
   insert into public.notifications(user_id, title, message, type, related_id)
   values (v_user, 'Order Placed', 'Your order ' || v_order_code || ' has been received.', 'order', v_order_id);
+
+  perform public.check_referral_qualification(v_user);
 
   return json_build_object(
     'order_id', v_order_id,
@@ -2316,6 +2522,8 @@ alter table public.notifications enable row level security;
 alter table public.payment_settings enable row level security;
 alter table public.site_settings enable row level security;
 alter table public.brand_settings enable row level security;
+alter table public.referral_settings enable row level security;
+alter table public.referrals enable row level security;
 alter table public.payment_qr_codes enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.push_subscriptions enable row level security;
@@ -2515,6 +2723,21 @@ create policy "brand_settings_select" on public.brand_settings
 create policy "brand_settings_update" on public.brand_settings
   for update using (public.is_super_admin()) with check (public.is_super_admin());
 
+-- ---------------- referral_settings ----------------
+create policy "referral_settings_select" on public.referral_settings
+  for select using (auth.role() = 'authenticated' or public.is_admin());
+
+create policy "referral_settings_update" on public.referral_settings
+  for update using (public.is_super_admin()) with check (public.is_super_admin());
+
+-- ---------------- referrals ----------------
+-- Only the referrer (their own list) or an admin can read referral rows -
+-- there are no insert/update/delete policies at all, because every write
+-- goes exclusively through claim_referral_code() / check_referral_qualification()
+-- (both SECURITY DEFINER), never directly from the app.
+create policy "referrals_select" on public.referrals
+  for select using (referrer_id = auth.uid() or public.is_admin());
+
 -- ---------------- payment_qr_codes ----------------
 create policy "payment_qr_codes_select" on public.payment_qr_codes
   for select using (auth.role() = 'authenticated' or public.is_admin());
@@ -2558,6 +2781,21 @@ create policy "refund_requests_select" on public.refund_requests
 insert into public.payment_settings (id) values (true) on conflict (id) do nothing;
 insert into public.site_settings (id) values (true) on conflict (id) do nothing;
 insert into public.brand_settings (id) values (true) on conflict (id) do nothing;
+insert into public.referral_settings (id) values (true) on conflict (id) do nothing;
+
+-- Backfill every existing profile with its own referral_code too (new
+-- signups get one automatically from handle_new_user() above). One row
+-- at a time, not a single bulk UPDATE, so each new code is checked
+-- against the ones just assigned earlier in this same run.
+do $$
+declare
+  r record;
+begin
+  for r in select id from public.profiles where referral_code is null loop
+    update public.profiles set referral_code = public.generate_referral_code() where id = r.id;
+  end loop;
+end;
+$$;
 
 -- =====================================================================
 -- SECTION 11: STORAGE CLEANUP (Super Admin / Admin only - "manage_storage"

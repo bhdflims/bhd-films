@@ -12,6 +12,7 @@ import {
   LifeBuoy,
   Info,
   FileText,
+  Gift,
   LogIn,
   LogOut,
   User,
@@ -32,6 +33,7 @@ const DRAWER_LINKS = [
   { to: '/add-funds', label: 'Add Funds', icon: PlusCircle },
   { to: '/fund-history', label: 'Fund History', icon: History },
   { to: '/orders', label: 'Order History', icon: ReceiptText },
+  { to: '/refer', label: 'Refer & Earn', icon: Gift },
   { to: '/support', label: 'Support', icon: LifeBuoy },
   { to: '/about', label: 'About Us', icon: Info },
   { to: '/terms', label: 'Terms & Conditions', icon: FileText }

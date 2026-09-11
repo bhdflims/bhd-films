@@ -27,7 +27,8 @@ import {
   AlertTriangle,
   RefreshCw,
   HardDrive,
-  Sparkles
+  Sparkles,
+  Share2
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
@@ -57,7 +58,8 @@ const NAV = [
   // (admin/staff are always blocked from it - see the allowed() and
   // has_permission() checks) - Brand Details itself has nothing to do
   // with managing admin accounts.
-  { to: '/admin/brand-details', label: 'Brand Details', icon: Sparkles, perm: 'manage_admins' }
+  { to: '/admin/brand-details', label: 'Brand Details', icon: Sparkles, perm: 'manage_admins' },
+  { to: '/admin/referral-settings', label: 'Referral Settings', icon: Share2, perm: 'manage_admins' }
 ]
 
 export default function AdminLayout() {

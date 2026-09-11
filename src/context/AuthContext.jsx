@@ -65,6 +65,26 @@ export function AuthProvider({ children }) {
 
       setProfile(profileData)
 
+      // If this browser is carrying a referral code from a ?ref= link
+      // (see ReferralCapture.jsx), try to claim it now - exactly once.
+      // Removing it from localStorage immediately (before the RPC even
+      // finishes) is what makes this "once": the next login/session
+      // restore won't find a code to retry, so it can't be claimed twice
+      // for the same visit even if this call fails. The RPC itself is
+      // also safe to call more than once regardless (it just reports
+      // 'already_claimed'/'not_eligible' instead of erroring), and it's
+      // fine for it to run again on a genuinely new later signup by the
+      // same browser (each account gets its own independent attempt).
+      try {
+        const pendingRefCode = localStorage.getItem('bhd_ref_code')
+        if (pendingRefCode) {
+          localStorage.removeItem('bhd_ref_code')
+          supabase.rpc('claim_referral_code', { p_code: pendingRefCode }).then(() => {})
+        }
+      } catch {
+        // localStorage unavailable - nothing to claim, nothing to break.
+      }
+
       const { data: adminData } = await supabase
         .from('admin_users')
         .select('role, permissions')
