@@ -23,7 +23,7 @@ create table public.profiles (
   username text unique,
   full_name text,
   email text,
-  phone text,
+  phone text check (phone is null or phone ~ '^[0-9]{10}$'),
   account_status text not null default 'active' check (account_status in ('active','suspended')),
   is_test_account boolean not null default false, -- flip this on for an account you use to test features. Orders/wallet activity from it are excluded from Dashboard and Reports totals.
   created_at timestamptz not null default now(),
@@ -575,6 +575,11 @@ begin
   if not public.is_admin() then
     new.account_status := old.account_status;
     new.email := old.email;
+    -- The username ("user ID") is generated once at signup and used as a
+    -- stable handle for the account - customers can change their display
+    -- name and phone number freely, but not this, so it stays a reliable
+    -- reference for support/admin lookups over time.
+    new.username := old.username;
   end if;
   new.last_activity_at := now();
   return new;
