@@ -185,7 +185,17 @@ export default function Login() {
       {error && <div className="field-error" style={{ textAlign: 'center', marginTop: 12 }}>{error}</div>}
 
       <p className="text-faint" style={{ fontSize: 11, textAlign: 'center', marginTop: 22 }}>
-        By continuing you agree to our Terms and Privacy Policy.
+        By continuing you agree to our{' '}
+        <span
+          className="text-gold"
+          style={{ textDecoration: 'underline', cursor: 'pointer' }}
+          onClick={() => navigate('/terms')}
+          role="button"
+          tabIndex={0}
+        >
+          Terms &amp; Conditions
+        </span>
+        .
       </p>
     </div>
   )

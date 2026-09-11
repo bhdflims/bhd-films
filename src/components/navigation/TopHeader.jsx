@@ -11,6 +11,7 @@ import {
   ReceiptText,
   LifeBuoy,
   Info,
+  FileText,
   LogIn,
   LogOut,
   User,
@@ -31,7 +32,8 @@ const DRAWER_LINKS = [
   { to: '/fund-history', label: 'Fund History', icon: History },
   { to: '/orders', label: 'Order History', icon: ReceiptText },
   { to: '/support', label: 'Support', icon: LifeBuoy },
-  { to: '/about', label: 'About Us', icon: Info }
+  { to: '/about', label: 'About Us', icon: Info },
+  { to: '/terms', label: 'Terms & Conditions', icon: FileText }
 ]
 
 // The 5 bottom-nav destinations - the only places where "hamburger menu"
