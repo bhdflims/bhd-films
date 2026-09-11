@@ -1766,7 +1766,24 @@ begin
     end if;
     v_after := p_amount;
     v_tx_amount := v_after - v_before;
-    update public.wallets set available_fund = v_after, updated_at = now() where id = v_wallet.id;
+    -- "Set Balance To" used to change available_fund without touching
+    -- total_fund_added/total_fund_used at all, so Total Added on the
+    -- customer's page could silently drift away from reality every time
+    -- it was used (e.g. add ₹50, set to ₹0, add ₹50 again = Total Added
+    -- shows ₹100 even though the customer only ever really has ₹50).
+    -- Now a "set" that raises the balance counts toward Total Added, and
+    -- one that lowers it counts toward Total Used, exactly like the
+    -- add/deduct actions already do - so the two stats stay honest no
+    -- matter which action an admin uses.
+    if v_tx_amount >= 0 then
+      update public.wallets
+      set available_fund = v_after, total_fund_added = total_fund_added + v_tx_amount, updated_at = now()
+      where id = v_wallet.id;
+    else
+      update public.wallets
+      set available_fund = v_after, total_fund_used = total_fund_used + abs(v_tx_amount), updated_at = now()
+      where id = v_wallet.id;
+    end if;
   end if;
 
   insert into public.wallet_transactions(wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, created_by_admin_id)
