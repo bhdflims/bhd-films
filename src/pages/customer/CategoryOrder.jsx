@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { Wallet as WalletIcon, ShieldCheck, Tag, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -37,6 +37,16 @@ export default function CategoryOrder() {
   const [appliedCoupon, setAppliedCoupon] = useState(null) // { code, title, discount_amount, payable_total, forAmount }
   const [couponChecking, setCouponChecking] = useState(false)
   const [couponError, setCouponError] = useState('')
+
+  // When a category has a lot of services (Followers, Likes, Views,
+  // Comments...), the real "Order Summary" card with the Pay Now button
+  // sits at the very bottom of a long list - picking the very FIRST
+  // service on the page meant scrolling past everything else just to
+  // check out. This tracks whether that card is currently on-screen, so
+  // a small floating bar can offer a shortcut to it (and to Pay Now)
+  // from wherever the customer actually is on the page.
+  const orderSummaryRef = useRef(null)
+  const [summaryInView, setSummaryInView] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -123,6 +133,24 @@ export default function CategoryOrder() {
 
   const payableTotal = appliedCoupon ? appliedCoupon.payable_total : grandTotal
 
+  useEffect(() => {
+    if (!hasSelection) {
+      setSummaryInView(false)
+      return
+    }
+    const el = orderSummaryRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(([entry]) => setSummaryInView(entry.isIntersecting), {
+      rootMargin: '0px 0px -15% 0px'
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasSelection])
+
+  function scrollToOrderSummary() {
+    orderSummaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   async function handleApplyCoupon() {
     setCouponError('')
     if (!couponInput.trim()) {
@@ -180,12 +208,14 @@ export default function CategoryOrder() {
     const validationError = validateAll()
     if (validationError) {
       setSubmitError(validationError)
+      scrollToOrderSummary()
       return
     }
     if (wallet && payableTotal > wallet.available_fund) {
       setSubmitError(
         `Insufficient wallet balance. Please add ${formatCurrency(payableTotal - wallet.available_fund)} or more to continue.`
       )
+      scrollToOrderSummary()
       return
     }
 
@@ -322,7 +352,7 @@ export default function CategoryOrder() {
           })()}
 
           {hasSelection && (
-            <div className="surface-card" style={{ marginTop: 6 }}>
+            <div className="surface-card" style={{ marginTop: 6 }} ref={orderSummaryRef}>
               <div className="section-title" style={{ marginBottom: 8 }}>
                 Order Summary
               </div>
@@ -422,6 +452,33 @@ export default function CategoryOrder() {
             </div>
           )}
         </>
+      )}
+
+      {/* Floating shortcut to checkout - shows once something's selected,
+          and hides itself the moment the real Order Summary card (with
+          the actual Pay Now button, coupon field, etc.) scrolls into
+          view, so it never sits on top of it. Fixes having to scroll
+          past every other service group just to pay for the first one
+          you picked. */}
+      {hasSelection && !confirmOpen && !summaryInView && (
+        <div className="sticky-pay-bar">
+          <div style={{ minWidth: 0 }}>
+            <div className="text-faint" style={{ fontSize: 10.5 }}>
+              {lineItems.length} service{lineItems.length > 1 ? 's' : ''} selected
+            </div>
+            <div className="text-gold" style={{ fontWeight: 800, fontSize: 16, lineHeight: 1.3 }}>
+              {formatCurrency(payableTotal)}
+            </div>
+          </div>
+          <button
+            className="btn btn-primary"
+            style={{ width: 'auto', flexShrink: 0, padding: '11px 18px' }}
+            onClick={handlePayNow}
+            disabled={submitting}
+          >
+            <ShieldCheck size={15} /> Pay Now
+          </button>
+        </div>
       )}
 
       {confirmOpen && (

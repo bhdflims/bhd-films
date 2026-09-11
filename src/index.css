@@ -247,6 +247,28 @@ textarea::placeholder {
   box-shadow: 0 0 0 2px var(--bg);
 }
 
+/* Floating "Pay Now" shortcut, docked just above the bottom nav - see
+   CategoryOrder.jsx. Lets a customer pay as soon as they've picked a
+   service, without having to scroll past the rest of a long service
+   list first. */
+.sticky-pay-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  width: 100%;
+  max-width: var(--app-max-width);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-soft);
+  box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.35);
+}
+
 /* ------------------------- Bottom nav ------------------------- */
 
 .bottom-nav {
