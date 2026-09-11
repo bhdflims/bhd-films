@@ -43,14 +43,18 @@ export default function Wallet() {
         </p>
       </div>
 
-      <div className="grid-2" style={{ marginBottom: 14 }}>
+      <div className="grid-3" style={{ marginBottom: 14 }}>
         <div className="stat-card">
-          <div className="stat-label">Total Fund Added</div>
+          <div className="stat-label">Total Added</div>
           <div className="stat-value text-success">{formatCurrency(wallet.total_fund_added)}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Total Fund Used</div>
+          <div className="stat-label">Total Used</div>
           <div className="stat-value">{formatCurrency(wallet.total_fund_used)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Total Refunded</div>
+          <div className="stat-value text-gold">{formatCurrency(wallet.total_fund_refunded)}</div>
         </div>
       </div>
 
