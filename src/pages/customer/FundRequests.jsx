@@ -114,7 +114,7 @@ export default function FundRequests() {
               <div style={{ marginTop: 10 }}>
                 {reuploadingId === r.id ? (
                   <>
-                    <input type="file" accept="image/*,.pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                    <input type="file" accept="image/*,application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
                     {error && <div className="field-error">{error}</div>}
                     <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} disabled={busy} onClick={() => handleReupload(r)}>
                       <Upload size={14} /> {busy ? 'Uploading…' : 'Submit Re-upload'}
