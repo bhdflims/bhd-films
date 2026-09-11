@@ -363,6 +363,31 @@ create table public.site_settings (
   updated_by uuid references auth.users(id)
 );
 
+-- Customer-facing brand/content settings, editable from the Brand
+-- Details admin page (super_admin only - see migration_019). Every
+-- column has a sensible fallback baked into the frontend, so leaving a
+-- field blank here just keeps showing the app's original built-in text
+-- - nothing breaks or goes blank if the admin hasn't filled something in
+-- yet.
+--   about_content: shown on the About Us page. Blank paragraphs (an
+--     empty line) separate paragraphs.
+--   terms_content: shown on the Terms & Conditions page. Each non-blank
+--     line becomes one numbered term.
+-- Read access is open to everyone (including logged-out visitors), same
+-- as site_settings, since this content shows up on public-facing pages.
+create table public.brand_settings (
+  id boolean primary key default true check (id),
+  brand_name_primary text,
+  brand_name_accent text,
+  home_tagline text,
+  support_email text,
+  support_phone text,
+  about_content text,
+  terms_content text,
+  updated_at timestamptz not null default now(),
+  updated_by uuid references auth.users(id)
+);
+
 -- One QR code picture per add-funds amount, fully admin-controlled.
 -- amount = a specific preset (e.g. 100, 500, 1000) shows that exact QR.
 -- amount = null is the fallback/default QR shown for a custom amount that
@@ -613,6 +638,7 @@ create trigger trg_support_tickets_updated before update on public.support_ticke
 create trigger trg_payment_settings_updated before update on public.payment_settings for each row execute function public.set_updated_at();
 create trigger trg_site_settings_updated before update on public.site_settings for each row execute function public.set_updated_at();
 create trigger trg_payment_qr_codes_updated before update on public.payment_qr_codes for each row execute function public.set_updated_at();
+create trigger trg_brand_settings_updated before update on public.brand_settings for each row execute function public.set_updated_at();
 
 -- =====================================================================
 -- SECTION 6: PROFILE PROTECTION (customers cannot self-promote / self-unsuspend)
@@ -811,6 +837,18 @@ $$;
 create trigger trg_site_settings_audit
   after update on public.site_settings
   for each row execute function public.log_site_settings_audit();
+
+create or replace function public.log_brand_settings_audit()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  perform public.write_audit_log('brand_settings_changed','brand_settings','main', to_jsonb(old), to_jsonb(new));
+  return new;
+end;
+$$;
+
+create trigger trg_brand_settings_audit
+  after update on public.brand_settings
+  for each row execute function public.log_brand_settings_audit();
 
 create or replace function public.log_payment_qr_audit()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -2277,6 +2315,7 @@ alter table public.support_messages enable row level security;
 alter table public.notifications enable row level security;
 alter table public.payment_settings enable row level security;
 alter table public.site_settings enable row level security;
+alter table public.brand_settings enable row level security;
 alter table public.payment_qr_codes enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.push_subscriptions enable row level security;
@@ -2464,6 +2503,18 @@ create policy "site_settings_select" on public.site_settings
 create policy "site_settings_update" on public.site_settings
   for update using (public.has_permission('manage_payment_settings')) with check (public.has_permission('manage_payment_settings'));
 
+-- ---------------- brand_settings ----------------
+-- select is open to EVERYONE (including anonymous/logged-out visitors),
+-- same reasoning as site_settings - this is the content shown on public
+-- pages (About Us, Terms, Home, the header). Only a super_admin can
+-- change it, unlike site_settings/payment_settings which any admin with
+-- the right permission can edit.
+create policy "brand_settings_select" on public.brand_settings
+  for select using (true);
+
+create policy "brand_settings_update" on public.brand_settings
+  for update using (public.is_super_admin()) with check (public.is_super_admin());
+
 -- ---------------- payment_qr_codes ----------------
 create policy "payment_qr_codes_select" on public.payment_qr_codes
   for select using (auth.role() = 'authenticated' or public.is_admin());
@@ -2506,6 +2557,7 @@ create policy "refund_requests_select" on public.refund_requests
 
 insert into public.payment_settings (id) values (true) on conflict (id) do nothing;
 insert into public.site_settings (id) values (true) on conflict (id) do nothing;
+insert into public.brand_settings (id) values (true) on conflict (id) do nothing;
 
 -- =====================================================================
 -- SECTION 11: STORAGE CLEANUP (Super Admin / Admin only - "manage_storage"

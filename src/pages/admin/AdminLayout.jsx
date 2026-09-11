@@ -26,7 +26,8 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
-  HardDrive
+  HardDrive,
+  Sparkles
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
@@ -51,7 +52,12 @@ const NAV = [
   { to: '/admin/support', label: 'Support Tickets', icon: MessageSquare, perm: 'manage_support', unreadKey: 'support' },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3, perm: 'view_customers' },
   { to: '/admin/audit-log', label: 'Audit Log', icon: ShieldCheck, perm: 'view_audit_log' },
-  { to: '/admin/admins', label: 'Admin Users', icon: UserCog, perm: 'manage_admins' }
+  { to: '/admin/admins', label: 'Admin Users', icon: UserCog, perm: 'manage_admins' },
+  // 'manage_admins' is reused here purely as the "super_admin only" gate
+  // (admin/staff are always blocked from it - see the allowed() and
+  // has_permission() checks) - Brand Details itself has nothing to do
+  // with managing admin accounts.
+  { to: '/admin/brand-details', label: 'Brand Details', icon: Sparkles, perm: 'manage_admins' }
 ]
 
 export default function AdminLayout() {

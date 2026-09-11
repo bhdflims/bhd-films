@@ -29,7 +29,20 @@ export default function Home() {
   const [coupons, setCoupons] = useState([])
   const [popular, setPopular] = useState([])
   const [query, setQuery] = useState('')
+  const [tagline, setTagline] = useState('')
   const greeting = useMemo(() => getGreeting(), [])
+
+  useEffect(() => {
+    // Brand Details (admin) lets the tagline below "Good Morning" be
+    // changed without a code push - falls back to the original
+    // "Let's Go Viral!" if nothing's been set.
+    supabase
+      .from('brand_settings')
+      .select('home_tagline')
+      .eq('id', true)
+      .maybeSingle()
+      .then(({ data }) => setTagline(data?.home_tagline?.trim() || ''))
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -129,7 +142,7 @@ export default function Home() {
         {greeting.text} <span>{greeting.emoji}</span>
       </p>
       <h1 className="home-headline">
-        Let's Go Viral! <span aria-hidden="true">🚀</span>
+        {tagline || "Let's Go Viral!"} <span aria-hidden="true">🚀</span>
       </h1>
 
       <div className="search-bar-wrap">

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Menu,
@@ -18,6 +18,7 @@ import {
   Download,
   BellRing
 } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useWallet } from '../../hooks/useWallet'
 import { useInstallPrompt } from '../../context/InstallPromptContext'
@@ -49,6 +50,19 @@ export default function TopHeader() {
   const { canOfferInstall, installed, promptInstall } = useInstallPrompt()
   const { supported: pushSupported, subscribed, subscribing, subscribe } = usePushNotifications()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [brandName, setBrandName] = useState(null)
+
+  useEffect(() => {
+    // Brand Details (admin, super_admin only) lets the header
+    // name/wordmark be changed without a code push - falls back to the
+    // original "BHD FILMS" split styling if nothing's been set.
+    supabase
+      .from('brand_settings')
+      .select('brand_name_primary, brand_name_accent')
+      .eq('id', true)
+      .maybeSingle()
+      .then(({ data }) => setBrandName(data))
+  }, [])
 
   // Every other screen (Add Funds, Fund Requests/History, a category's
   // order page, Support, About, Terms, a profile edit...) was only ever
@@ -91,7 +105,8 @@ export default function TopHeader() {
         )}
 
         <div className="brand-wordmark" onClick={() => navigate('/')} role="button" tabIndex={0}>
-          BHD <span className="text-gold">FILMS</span>
+          {brandName?.brand_name_primary?.trim() || 'BHD'}{' '}
+          <span className="text-gold">{brandName?.brand_name_accent?.trim() || 'FILMS'}</span>
         </div>
 
         {isLoggedIn ? (
