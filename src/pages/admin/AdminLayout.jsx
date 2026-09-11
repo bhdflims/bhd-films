@@ -24,10 +24,12 @@ import {
   BellRing,
   Undo2,
   X,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { usePushNotifications } from '../../hooks/usePushNotifications'
+import AdminNotificationBell from '../../components/common/AdminNotificationBell'
 
 const NAV = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true, perm: null },
@@ -205,9 +207,15 @@ export default function AdminLayout() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
           <Clapperboard size={18} /> BHD Films Admin
         </div>
-        <button className="icon-btn" onClick={() => setMobileOpen(true)}>
-          <Menu size={18} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button className="icon-btn" onClick={() => window.location.reload()} aria-label="Refresh">
+            <RefreshCw size={17} />
+          </button>
+          <AdminNotificationBell />
+          <button className="icon-btn" onClick={() => setMobileOpen(true)} aria-label="Menu">
+            <Menu size={18} />
+          </button>
+        </div>
       </div>
 
       {mobileOpen && (
@@ -231,8 +239,16 @@ export default function AdminLayout() {
       )}
 
       <aside className="admin-sidebar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, padding: '6px 10px 18px' }}>
-          <Clapperboard size={18} /> BHD Films
+        <div className="row-between" style={{ padding: '6px 10px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800 }}>
+            <Clapperboard size={18} /> BHD Films
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button className="icon-btn" onClick={() => window.location.reload()} aria-label="Refresh">
+              <RefreshCw size={16} />
+            </button>
+            <AdminNotificationBell />
+          </div>
         </div>
         {linkList}
         <div className="divider" />
