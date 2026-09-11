@@ -398,7 +398,7 @@ function TicketModal({ ticket, adminUserId, onClose, onChanged }) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <label className="icon-btn" style={{ cursor: 'pointer', flexShrink: 0 }}>
               <Upload size={16} />
-              <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
             </label>
             <textarea rows={2} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Reply to customer…" style={{ flex: 1, resize: 'none' }} />
             <button className="btn btn-primary" style={{ width: 'auto', flexShrink: 0, padding: '10px 14px' }} disabled={sending || !reply.trim()}>
