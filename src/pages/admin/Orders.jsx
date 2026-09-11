@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
-import { formatCurrency, formatDate } from '../../utils/format'
+import { formatCurrency, formatRate, formatDate } from '../../utils/format'
 
 const STATUSES = ['received', 'processing', 'completed', 'cancelled', 'refunded']
 
@@ -100,7 +100,7 @@ export default function Orders() {
                 <div style={{ marginTop: 10 }}>
                   {(order.order_items || []).map((item) => (
                     <div key={item.id} className="row-between" style={{ fontSize: 12, marginBottom: 6 }}>
-                      <span>{item.service_name_snapshot} (Qty {item.quantity} × {formatCurrency(item.applied_rate)})</span>
+                      <span>{item.service_name_snapshot} (Qty {item.quantity} × {formatRate(item.applied_rate)})</span>
                       <span>{formatCurrency(item.item_total)}</span>
                     </div>
                   ))}
