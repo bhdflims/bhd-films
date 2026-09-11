@@ -124,6 +124,10 @@ export default function CustomerDetail() {
           <div className="stat-value">{formatCurrency(wallet?.total_fund_used || 0)}</div>
         </div>
         <div className="stat-card">
+          <div className="stat-label">Total Refunded</div>
+          <div className="stat-value text-gold">{formatCurrency(wallet?.total_fund_refunded || 0)}</div>
+        </div>
+        <div className="stat-card">
           <div className="stat-label">Total Orders</div>
           <div className="stat-value">{orders.length}</div>
         </div>
