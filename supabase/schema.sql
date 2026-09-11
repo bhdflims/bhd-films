@@ -108,6 +108,7 @@ create table public.wallets (
   available_fund numeric(12,2) not null default 0 check (available_fund >= 0),
   total_fund_added numeric(12,2) not null default 0,
   total_fund_used numeric(12,2) not null default 0,
+  total_fund_refunded numeric(12,2) not null default 0,
   updated_at timestamptz not null default now()
 );
 
@@ -1148,8 +1149,16 @@ begin
       v_after := v_before + v_final_amount;
       v_final_remark := coalesce(nullif(trim(p_remark), ''), 'Refund has been added to your wallet.');
 
+      -- A refund reverses money that was previously counted as "used" when
+      -- the order was placed - without this, total_fund_used stays
+      -- permanently inflated by amounts the customer actually got back,
+      -- making "Total Fund Used" misleading. Move it into
+      -- total_fund_refunded instead so both numbers stay honest.
       update public.wallets
-      set available_fund = v_after, updated_at = now()
+      set available_fund = v_after,
+          total_fund_used = greatest(total_fund_used - v_final_amount, 0),
+          total_fund_refunded = total_fund_refunded + v_final_amount,
+          updated_at = now()
       where id = v_wallet.id;
 
       insert into public.wallet_transactions (wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id, created_by_admin_id)
@@ -1159,6 +1168,16 @@ begin
       v_final_remark := coalesce(nullif(trim(p_remark), ''), 'Refund has been paid to your bank/UPI. See receipt for proof.');
 
       if v_wallet is not null then
+        -- Paid externally (not back into the wallet), but the original
+        -- spend still came out of this wallet's total_fund_used at
+        -- checkout, so it still needs to move into total_fund_refunded -
+        -- available_fund itself is untouched.
+        update public.wallets
+        set total_fund_used = greatest(total_fund_used - v_final_amount, 0),
+            total_fund_refunded = total_fund_refunded + v_final_amount,
+            updated_at = now()
+        where id = v_wallet.id;
+
         insert into public.wallet_transactions (wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id, created_by_admin_id)
         values (v_wallet.id, v_rr.user_id, 'refund', v_final_amount, v_wallet.available_fund, v_wallet.available_fund, 'completed',
           'Paid via bank/UPI directly - record only, wallet balance unchanged. ' || v_final_remark, v_rr.order_id, v_admin);
@@ -1684,8 +1703,14 @@ begin
         v_before := v_wallet.available_fund;
         v_after := v_before + v_paid_amount;
 
+        -- Same accounting fix as admin_review_refund_request: move this
+        -- amount out of total_fund_used and into total_fund_refunded so
+        -- it doesn't sit there looking permanently "spent".
         update public.wallets
-        set available_fund = v_after, updated_at = now()
+        set available_fund = v_after,
+            total_fund_used = greatest(total_fund_used - v_paid_amount, 0),
+            total_fund_refunded = total_fund_refunded + v_paid_amount,
+            updated_at = now()
         where id = v_wallet.id;
 
         insert into public.wallet_transactions
