@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import Loader from '../../components/common/Loader'
 import { formatCurrency } from '../../utils/format'
 
 export default function PaymentSettings() {
-  const { user } = useAuth()
+  const { user, isSuperAdmin } = useAuth()
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState(null)
   const [qrCodes, setQrCodes] = useState([])
@@ -233,11 +233,15 @@ export default function PaymentSettings() {
                   >
                     {qrBusy === row.key ? 'Saving…' : row.qr ? 'Replace' : 'Upload'}
                   </button>
-                  {row.qr && (
+                  {row.qr && (isSuperAdmin ? (
                     <button className="icon-btn" disabled={qrBusy === row.key} onClick={() => handleDeleteQr(row)}>
                       <Trash2 size={14} />
                     </button>
-                  )}
+                  ) : (
+                    <span className="text-faint" title="Only a Super Admin can delete a QR code. Uploading a new one to replace it is still fine." style={{ display: 'flex', alignItems: 'center' }}>
+                      <Lock size={13} />
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>

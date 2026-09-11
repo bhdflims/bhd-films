@@ -83,17 +83,20 @@ create policy "payment_qr_admin_update"
 on storage.objects for update to authenticated
 using (bucket_id = 'payment-qr' and public.has_permission('manage_payment_settings'));
 
+-- Deleting a file (as opposed to uploading/replacing one) is permanent
+-- and only a super_admin can do it - see migration_018.
 create policy "payment_qr_admin_delete"
 on storage.objects for delete to authenticated
-using (bucket_id = 'payment-qr' and public.has_permission('manage_payment_settings'));
+using (bucket_id = 'payment-qr' and public.is_super_admin());
 
 -- Lets the Storage Cleanup page's own "delete old QR images" button work.
 -- RLS policies for the same command are OR'd together, so this sits
--- alongside payment_qr_admin_delete above rather than replacing it -
--- either permission is enough to delete a payment-qr file.
+-- alongside payment_qr_admin_delete above rather than replacing it - in
+-- practice both now require the same thing (super_admin), kept as two
+-- policies just to preserve the original comment trail/intent of each.
 create policy "payment_qr_delete_storage_cleanup"
 on storage.objects for delete to authenticated
-using (bucket_id = 'payment-qr' and public.has_permission('manage_storage'));
+using (bucket_id = 'payment-qr' and public.is_super_admin());
 
 -- ---------------- support-attachments bucket policies ----------------
 create policy "support_attachments_insert_own_folder"
@@ -114,11 +117,13 @@ using (
 -- out by hand. Without this, deleting only ever removed the catalog
 -- row via a raw SQL DELETE (see storage_delete_files() in schema.sql)
 -- and never freed the real bytes from the bucket - see migration_017.
+-- Deleting a file is permanent - restricted to super_admin only, see
+-- migration_018.
 create policy "support_attachments_delete_admin"
 on storage.objects for delete to authenticated
 using (
   bucket_id = 'support-attachments'
-  and public.has_permission('manage_storage')
+  and public.is_super_admin()
 );
 
 -- ---------------- refund-receipts bucket policies ----------------
@@ -140,11 +145,13 @@ using (
 );
 
 -- Storage Cleanup page delete (see note on support_attachments above).
+-- Deleting a file is permanent - restricted to super_admin only, see
+-- migration_018.
 create policy "refund_receipts_delete_admin"
 on storage.objects for delete to authenticated
 using (
   bucket_id = 'refund-receipts'
-  and public.has_permission('manage_storage')
+  and public.is_super_admin()
 );
 
 -- ---------------- refund-customer-proof bucket policies ----------------
@@ -165,9 +172,11 @@ using (
 );
 
 -- Storage Cleanup page delete (see note on support_attachments above).
+-- Deleting a file is permanent - restricted to super_admin only, see
+-- migration_018.
 create policy "refund_customer_proof_delete_admin"
 on storage.objects for delete to authenticated
 using (
   bucket_id = 'refund-customer-proof'
-  and public.has_permission('manage_storage')
+  and public.is_super_admin()
 );

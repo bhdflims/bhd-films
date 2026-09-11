@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import JSZip from 'jszip'
-import { HardDrive, Trash2, RefreshCw, Download } from 'lucide-react'
+import { HardDrive, Trash2, RefreshCw, Download, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import { formatBytes, formatDate } from '../../utils/format'
+import { useAuth } from '../../context/AuthContext'
 
 // Supabase's free-tier Storage limit. If the project is ever upgraded to
 // a paid plan with more space, just change this one number.
@@ -24,6 +25,7 @@ const BUCKET_LABELS = {
 }
 
 export default function StorageCleanup() {
+  const { isSuperAdmin } = useAuth()
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState([])
   const [qrOrphans, setQrOrphans] = useState([])
@@ -75,6 +77,15 @@ export default function StorageCleanup() {
       const names = qrOrphans.map((f) => f.name)
       const { error } = await supabase.storage.from('payment-qr').remove(names)
       if (error) throw error
+      // storage.objects deletions don't get an automatic audit trigger the
+      // way table edits do, so this logs it explicitly - this is a
+      // super-admin-only action and needs to show up in the Audit Log with
+      // who did it, same as any other destructive/money-moving change.
+      await supabase.rpc('log_storage_deletion', {
+        p_bucket: 'payment-qr',
+        p_names: names,
+        p_freed_bytes: qrOrphanBytes
+      })
       setMessage(`Deleted ${names.length} old QR image(s), freed ${formatBytes(qrOrphanBytes)}.`)
       loadSummary()
     } catch (e) {
@@ -183,6 +194,13 @@ export default function StorageCleanup() {
       const bytes = selectedBytes
       const { error } = await supabase.storage.from(selectedBucket).remove(names)
       if (error) throw error
+      // Same audit-logging as the QR cleanup above - storage deletions have
+      // no automatic trigger, so this records it manually for the Audit Log.
+      await supabase.rpc('log_storage_deletion', {
+        p_bucket: selectedBucket,
+        p_names: names,
+        p_freed_bytes: bytes
+      })
       setMessage(`Deleted ${names.length} file(s), freed ${formatBytes(bytes)}.`)
       loadFiles()
       loadSummary()
@@ -253,10 +271,14 @@ export default function StorageCleanup() {
         </p>
         {qrOrphans.length === 0 ? (
           <p className="text-faint" style={{ fontSize: 12 }}>Nothing to clean up right now.</p>
-        ) : (
+        ) : isSuperAdmin ? (
           <button className="btn btn-primary btn-sm" onClick={handleDeleteQrOrphans} disabled={qrBusy}>
             <Trash2 size={14} /> {qrBusy ? 'Deleting…' : `Delete ${qrOrphans.length} old QR image(s) (${formatBytes(qrOrphanBytes)})`}
           </button>
+        ) : (
+          <p className="text-faint" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Lock size={12} /> Only a Super Admin can delete files.
+          </p>
         )}
       </div>
 
@@ -327,13 +349,19 @@ export default function StorageCleanup() {
               Not sure? Download a backup first — it saves the actual photos to your computer as a .zip file,
               so you'll still have them even after deleting from here.
             </p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <button className="btn btn-secondary btn-sm" onClick={handleDownloadBackup} disabled={backupBusy || selectedNames.length === 0}>
                 <Download size={14} /> {backupBusy ? (backupProgress || 'Preparing…') : `Download Backup (${selectedNames.length})`}
               </button>
-              <button className="btn btn-primary btn-sm" onClick={handleDeleteSelected} disabled={deleteBusy || selectedNames.length === 0}>
-                <Trash2 size={14} /> {deleteBusy ? 'Deleting…' : `Delete ${selectedNames.length} selected file(s)`}
-              </button>
+              {isSuperAdmin ? (
+                <button className="btn btn-primary btn-sm" onClick={handleDeleteSelected} disabled={deleteBusy || selectedNames.length === 0}>
+                  <Trash2 size={14} /> {deleteBusy ? 'Deleting…' : `Delete ${selectedNames.length} selected file(s)`}
+                </button>
+              ) : (
+                <span className="text-faint" style={{ fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Lock size={12} /> Only a Super Admin can delete files.
+                </span>
+              )}
             </div>
           </>
         )}

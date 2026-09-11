@@ -456,6 +456,21 @@ language sql stable security definer set search_path = public as $$
   select role from public.admin_users where id = auth.uid();
 $$;
 
+-- True only for the super_admin role. Used to gate the handful of
+-- actions that are money-moving or permanently destructive (wallet
+-- balance changes, deleting an uploaded file, deleting a live payment
+-- QR code) so that admin/staff - who can otherwise do almost everything
+-- via has_permission() - can never touch these specific actions no
+-- matter what their role or permissions jsonb says. Everything else
+-- (coupons, offers, services, categories, bulk pricing, adding/changing
+-- a QR code) is unaffected and still goes through has_permission() as
+-- before.
+create or replace function public.is_super_admin()
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select role from public.admin_users where id = auth.uid()) = 'super_admin', false);
+$$;
+
 -- Central permission check used by every RLS policy and RPC function.
 -- super_admin => always true.
 -- admin       => true for everything except 'manage_admins'.
@@ -1729,7 +1744,10 @@ declare
   v_after numeric;
   v_tx_amount numeric;
 begin
-  if not public.has_permission('manage_wallets') then
+  -- Wallet balance changes are money-moving, so only a super_admin can
+  -- perform them directly - admin/staff used to be able to via
+  -- has_permission('manage_wallets'), but that's now restricted further.
+  if not public.is_super_admin() then
     raise exception 'Not authorized.';
   end if;
   if p_reason is null or length(trim(p_reason)) = 0 then
@@ -2456,8 +2474,13 @@ create policy "payment_qr_codes_insert" on public.payment_qr_codes
 create policy "payment_qr_codes_update" on public.payment_qr_codes
   for update using (public.has_permission('manage_payment_settings')) with check (public.has_permission('manage_payment_settings'));
 
+-- Deleting a live QR code is permanent and customer-facing (the payment
+-- screen for that amount goes blank until a new one is uploaded), so
+-- it's restricted to super_admin only. Uploading/replacing a QR code
+-- still goes through payment_qr_codes_insert/_update above, unchanged -
+-- admin and staff (with manage_payment_settings) keep that ability.
 create policy "payment_qr_codes_delete" on public.payment_qr_codes
-  for delete using (public.has_permission('manage_payment_settings'));
+  for delete using (public.is_super_admin());
 
 -- ---------------- audit_logs (read-only, admin/staff-with-permission only) ----------------
 create policy "audit_logs_select" on public.audit_logs
@@ -2535,7 +2558,13 @@ declare
   v_count int;
   v_bytes bigint;
 begin
-  if not public.has_permission('manage_storage') then
+  -- The Storage Cleanup page's client code now deletes via the real
+  -- Storage API (supabase.storage.remove()) instead of calling this RPC,
+  -- so this function is effectively unused - but it's still a callable
+  -- RPC, so its own check is hardened to super_admin-only too, for
+  -- defense-in-depth, matching the RLS policy that actually governs the
+  -- Storage API path.
+  if not public.is_super_admin() then
     raise exception 'Not authorized.';
   end if;
   select count(*), coalesce(sum((o.metadata->>'size')::bigint), 0) into v_count, v_bytes
@@ -2587,7 +2616,10 @@ declare
   v_count int;
   v_bytes bigint;
 begin
-  if not public.has_permission('manage_storage') then
+  -- Same as storage_delete_qr_orphans() above: unused by the client now
+  -- (it deletes via the real Storage API directly), hardened to
+  -- super_admin-only for defense-in-depth anyway.
+  if not public.is_super_admin() then
     raise exception 'Not authorized.';
   end if;
   if p_bucket = 'receipts' then
@@ -2611,11 +2643,39 @@ begin
 end;
 $$;
 
+-- Records a storage-file deletion in the Audit Log. Deleting a file from
+-- a bucket (via supabase.storage.from(bucket).remove(...)) doesn't go
+-- through a regular table INSERT/UPDATE/DELETE, so it never trips any of
+-- the existing "trg_..._audit" triggers - without this, a super_admin
+-- could delete files from Storage Cleanup and it would be completely
+-- invisible in the Audit Log. The Storage Cleanup page calls this itself,
+-- right after a successful delete, naming exactly which files were
+-- removed and how many bytes were freed.
+create or replace function public.log_storage_deletion(p_bucket text, p_names text[], p_freed_bytes bigint default null)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_super_admin() then
+    raise exception 'Not authorized.';
+  end if;
+  if p_names is null or array_length(p_names, 1) is null then
+    raise exception 'No files given.';
+  end if;
+  perform public.write_audit_log(
+    'storage_files_deleted', 'storage', p_bucket,
+    null,
+    jsonb_build_object('bucket', p_bucket, 'file_count', array_length(p_names, 1), 'names', to_jsonb(p_names), 'freed_bytes', p_freed_bytes),
+    null
+  );
+end;
+$$;
+
 grant execute on function public.storage_usage_summary() to authenticated;
 grant execute on function public.storage_qr_orphans() to authenticated;
 grant execute on function public.storage_delete_qr_orphans() to authenticated;
 grant execute on function public.storage_list_files(text, timestamptz) to authenticated;
 grant execute on function public.storage_delete_files(text, text[]) to authenticated;
+grant execute on function public.log_storage_deletion(text, text[], bigint) to authenticated;
 
 -- =====================================================================
 -- END OF SCHEMA. Next: run supabase/storage.sql, then supabase/seed_admin.sql

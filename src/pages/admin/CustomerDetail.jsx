@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Wallet as WalletIcon } from 'lucide-react'
+import { ArrowLeft, Wallet as WalletIcon, Lock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
 import Modal from '../../components/common/Modal'
 import { formatCurrency, formatDate, initialsFromName } from '../../utils/format'
+import { useAuth } from '../../context/AuthContext'
 
 export default function CustomerDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { isSuperAdmin } = useAuth()
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState(null)
   const [wallet, setWallet] = useState(null)
@@ -163,9 +165,15 @@ export default function CustomerDetail() {
         </div>
       </div>
 
-      <button className="btn btn-primary" style={{ marginBottom: 10 }} onClick={openAdjustModal}>
-        <WalletIcon size={16} /> Modify Fund
-      </button>
+      {isSuperAdmin ? (
+        <button className="btn btn-primary" style={{ marginBottom: 10 }} onClick={openAdjustModal}>
+          <WalletIcon size={16} /> Modify Fund
+        </button>
+      ) : (
+        <p className="text-faint" style={{ fontSize: 11.5, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Lock size={12} /> Only a Super Admin can modify a customer's wallet balance directly.
+        </p>
+      )}
       {successMsg && (
         <div className="text-success" style={{ fontSize: 12.5, marginBottom: 12, fontWeight: 600 }}>
           {successMsg}
