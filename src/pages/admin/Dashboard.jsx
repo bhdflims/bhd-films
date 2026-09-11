@@ -11,7 +11,8 @@ const FILTERS = [
   { key: 'today', label: 'Today' },
   { key: 'week', label: 'This Week' },
   { key: 'month', label: 'This Month' },
-  { key: 'all', label: 'All Time' }
+  { key: 'all', label: 'All Time' },
+  { key: 'custom', label: 'Custom Date' }
 ]
 
 export default function Dashboard() {
@@ -24,6 +25,12 @@ export default function Dashboard() {
   const [pwError, setPwError] = useState('')
   const [pwDone, setPwDone] = useState(false)
   const [filter, setFilter] = useState('today')
+  // "Today" moves at midnight - right after 12 AM, what was "today" a
+  // minute ago becomes unreachable through Today/Week/Month/All Time (it's
+  // now yesterday). Custom Date lets an admin pick any past day (or range)
+  // by hand instead of losing access to it.
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState(null)
   const [recentOrders, setRecentOrders] = useState([])
@@ -33,7 +40,16 @@ export default function Dashboard() {
     let mounted = true
     async function load() {
       setLoading(true)
-      const { from } = filter === 'all' ? { from: null } : getRange(filter)
+      const { from, to } =
+        filter === 'all' ? { from: null, to: null } :
+        filter === 'custom' ? getRange('custom', customFrom, customTo) :
+        getRange(filter)
+      // Bounds-check a timestamp against the selected period. Today/Week/
+      // Month only ever have a lower bound (from "then" through right now),
+      // but a Custom Date range needs an upper bound too, otherwise picking
+      // a single past day would pull in everything from that day through
+      // this very second.
+      const inRange = (ts) => (!from || ts >= from) && (!to || ts <= to)
 
       const [testProfilesRes, profilesRes, walletsRes, ordersRes, fundReqRes, txRes, recentOrdersRes, recentFundRes] = await Promise.all([
         supabase.from('profiles').select('id').eq('is_test_account', true),
@@ -54,7 +70,7 @@ export default function Dashboard() {
 
       const profiles = (profilesRes.data || []).filter((p) => isReal(p.id))
       const totalCustomers = profiles.length
-      const newCustomers = from ? profiles.filter((p) => p.created_at >= from).length : totalCustomers
+      const newCustomers = from ? profiles.filter((p) => inRange(p.created_at)).length : totalCustomers
 
       // "Total Wallet Balance" is a live snapshot (how much money is sitting
       // in wallets right now) so it intentionally ignores the Today/Week/
@@ -63,7 +79,7 @@ export default function Dashboard() {
       const totalBalance = wallets.reduce((s, w) => s + Number(w.available_fund), 0)
 
       const orders = (ordersRes.data || []).filter((o) => isReal(o.user_id))
-      const totalOrders = from ? orders.filter((o) => o.created_at >= from).length : orders.length
+      const totalOrders = from ? orders.filter((o) => inRange(o.created_at)).length : orders.length
 
       // "Total Funds Added"/"Total Funds Used" USED to just sum each
       // wallet's lifetime total_fund_added/total_fund_used column - which
@@ -78,7 +94,7 @@ export default function Dashboard() {
       // transaction, or a "deduct"/downward "set"). Refund transactions are
       // deliberately left out of both - they're money moving back after
       // already being counted as "used", not a fresh addition.
-      const tx = (txRes.data || []).filter((t) => isReal(t.user_id) && (!from || t.created_at >= from))
+      const tx = (txRes.data || []).filter((t) => isReal(t.user_id) && (!from || inRange(t.created_at)))
       let totalAdded = 0
       let totalUsed = 0
       for (const t of tx) {
@@ -102,8 +118,8 @@ export default function Dashboard() {
       // doing that day - not "submitted today AND happens to be approved".
       const fundStatuses = (fundReqRes.data || []).filter((r) => isReal(r.user_id))
       const pending = fundStatuses.filter((r) => ['pending', 'under_review', 'reupload_required'].includes(r.status)).length
-      const approved = fundStatuses.filter((r) => r.status === 'approved' && (!from || r.reviewed_at >= from)).length
-      const rejected = fundStatuses.filter((r) => r.status === 'rejected' && (!from || r.reviewed_at >= from)).length
+      const approved = fundStatuses.filter((r) => r.status === 'approved' && (!from || inRange(r.reviewed_at))).length
+      const rejected = fundStatuses.filter((r) => r.status === 'rejected' && (!from || inRange(r.reviewed_at))).length
 
       if (!mounted) return
       setStats({
@@ -125,7 +141,7 @@ export default function Dashboard() {
     return () => {
       mounted = false
     }
-  }, [filter])
+  }, [filter, customFrom, customTo])
 
   async function handleSetPassword() {
     setPwError('')
@@ -155,9 +171,9 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="row-between" style={{ marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+      <div className="row-between" style={{ marginBottom: filter === 'custom' ? 10 : 16, flexWrap: 'wrap', gap: 10 }}>
         <h1 style={{ fontSize: 19, margin: 0 }}>Dashboard</h1>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -170,6 +186,22 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {filter === 'custom' && (
+        <div className="surface-card" style={{ marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ flex: '1 1 140px' }}>
+            <span className="field-label">From</span>
+            <input type="date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} />
+          </div>
+          <div style={{ flex: '1 1 140px' }}>
+            <span className="field-label">To</span>
+            <input type="date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} />
+          </div>
+          {(!customFrom || !customTo) && (
+            <p className="text-faint" style={{ fontSize: 11.5, margin: 0, flexBasis: '100%' }}>Pick both dates to see that period's numbers.</p>
+          )}
+        </div>
+      )}
 
       <div className="surface-card" style={{ marginBottom: 16 }}>
         <button
