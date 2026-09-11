@@ -58,8 +58,13 @@ export default function Dashboard() {
         supabase.from('orders').select('id, user_id, created_at'),
         supabase.from('fund_requests').select('user_id, status, reviewed_at'),
         supabase.from('wallet_transactions').select('user_id, type, amount, balance_before, balance_after, created_at'),
-        supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(20),
-        supabase.from('fund_requests').select('*').order('created_at', { ascending: false }).limit(20)
+        // Fetched wider than the 10 actually shown (see below) because
+        // these now get filtered down to the selected period afterward -
+        // a plain top-20-most-recent-overall could otherwise run out
+        // before reaching enough rows that fall inside an older Custom
+        // Date range.
+        supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('fund_requests').select('*').order('created_at', { ascending: false }).limit(50)
       ])
 
       // Test accounts (flagged from a customer's admin detail page) never
@@ -133,8 +138,24 @@ export default function Dashboard() {
         rejected,
         totalOrders
       })
-      setRecentOrders((recentOrdersRes.data || []).filter((o) => isReal(o.user_id)).slice(0, 6))
-      setRecentFundRequests((recentFundRes.data || []).filter((r) => isReal(r.user_id)).slice(0, 6))
+      // These two lists used to ALWAYS show the most recent 6 overall, no
+      // matter which tab was selected - so switching to Today (or a
+      // Custom Date) never actually narrowed what showed up here, only
+      // the stat tiles above changed. That's exactly what made the ₹9
+      // approval from 8:14 AM look "missing": it's real, it just wasn't
+      // one of the 6 single most-recent requests across all of history,
+      // even though it belonged to the selected day. Now these respect
+      // the same period as everything else on the page.
+      setRecentOrders(
+        (recentOrdersRes.data || [])
+          .filter((o) => isReal(o.user_id) && (!from || inRange(o.created_at)))
+          .slice(0, 10)
+      )
+      setRecentFundRequests(
+        (recentFundRes.data || [])
+          .filter((r) => isReal(r.user_id) && (!from || inRange(r.created_at)))
+          .slice(0, 10)
+      )
       setLoading(false)
     }
     load()
