@@ -8,13 +8,15 @@ import { formatCurrency, formatDateShort } from '../../utils/format'
 
 const STATUS_LABEL = {
   pending: 'Waiting',
-  qualified: 'Qualified',
-  paid: 'Bonus Paid'
+  qualified: 'Almost There',
+  paid: 'Bonus Paid',
+  rejected: 'Not Approved'
 }
 const STATUS_CHIP = {
   pending: 'chip-warning',
   qualified: 'chip-info',
-  paid: 'chip-success'
+  paid: 'chip-success',
+  rejected: 'chip-danger'
 }
 
 export default function ReferEarn() {

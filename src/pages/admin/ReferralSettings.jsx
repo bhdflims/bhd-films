@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Gift } from 'lucide-react'
+import { Gift, Check, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import Loader from '../../components/common/Loader'
 import { formatCurrency, formatDate, formatDateShort } from '../../utils/format'
 
-const STATUS_LABEL = { pending: 'Waiting', qualified: 'Qualified', paid: 'Bonus Paid' }
-const STATUS_CHIP = { pending: 'chip-warning', qualified: 'chip-info', paid: 'chip-success' }
+const STATUS_LABEL = { pending: 'Waiting', qualified: 'Awaiting Approval', paid: 'Bonus Paid', rejected: 'Rejected' }
+const STATUS_CHIP = { pending: 'chip-warning', qualified: 'chip-info', paid: 'chip-success', rejected: 'chip-danger' }
 
 export default function ReferralSettings() {
   const { user } = useAuth()
@@ -15,6 +15,7 @@ export default function ReferralSettings() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [referrals, setReferrals] = useState([])
+  const [reviewingId, setReviewingId] = useState(null)
 
   async function load() {
     setLoading(true)
@@ -45,6 +46,7 @@ export default function ReferralSettings() {
         min_fund_added: Number(settings.min_fund_added) || 0,
         min_order_amount: Number(settings.min_order_amount) || 0,
         bonus_amount: Number(settings.bonus_amount) || 0,
+        require_manual_approval: settings.require_manual_approval,
         updated_by: user.id
       })
       .eq('id', true)
@@ -57,10 +59,22 @@ export default function ReferralSettings() {
     load()
   }
 
+  async function handleReview(referralId, action) {
+    setReviewingId(referralId)
+    const { error } = await supabase.rpc('admin_review_referral_bonus', { p_referral_id: referralId, p_action: action })
+    setReviewingId(null)
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+    load()
+  }
+
   if (loading || !settings) return <Loader />
 
   const paidCount = referrals.filter((r) => r.status === 'paid').length
   const totalPaidOut = referrals.reduce((s, r) => (r.status === 'paid' ? s + Number(r.bonus_amount || 0) : s), 0)
+  const awaitingApproval = referrals.filter((r) => r.status === 'qualified')
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -122,7 +136,8 @@ export default function ReferralSettings() {
       <div className="surface-card" style={{ marginBottom: 16 }}>
         <strong style={{ fontSize: 13.5 }}>Bonus Amount</strong>
         <p className="text-faint" style={{ fontSize: 11.5, margin: '6px 0 10px' }}>
-          Credited automatically to the REFERRER's wallet the moment the rule above is met — "Z".
+          Credited to the REFERRER's wallet once the rule above is met — "Z". Paid instantly, unless you turn on
+          manual approval below.
         </p>
         <div>
           <span className="field-label">Bonus (₹)</span>
@@ -136,6 +151,31 @@ export default function ReferralSettings() {
         </div>
       </div>
 
+      <label
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: settings.require_manual_approval ? 'rgba(251, 191, 36, 0.12)' : 'var(--surface)',
+          marginBottom: 16, cursor: 'pointer'
+        }}
+      >
+        <input
+          type="checkbox"
+          style={{ width: 18, height: 18 }}
+          checked={settings.require_manual_approval}
+          onChange={(e) => setSettings({ ...settings, require_manual_approval: e.target.checked })}
+        />
+        <span>
+          <span style={{ fontWeight: 800, fontSize: 13.5, display: 'block' }}>
+            {settings.require_manual_approval ? '🟡 Bonuses need my approval before paying' : '⚪ Bonuses pay automatically (no approval needed)'}
+          </span>
+          <span className="text-faint" style={{ fontSize: 11.5 }}>
+            A safety net against fake accounts — when on, a qualifying referral waits in the queue below until you
+            personally approve or reject it. Nothing is paid until you do.
+          </span>
+        </span>
+      </label>
+
       {message && <p className="text-dim" style={{ fontSize: 12.5, marginBottom: 10 }}>{message}</p>}
       <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
         {saving ? 'Saving…' : 'Save'}
@@ -145,6 +185,45 @@ export default function ReferralSettings() {
         <p className="text-faint" style={{ fontSize: 11, marginTop: 14, marginBottom: 26 }}>
           Last changed {formatDate(settings.updated_at)}
         </p>
+      )}
+
+      {awaitingApproval.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h2 style={{ fontSize: 15, margin: '0 0 10px' }}>
+            Awaiting Approval <span className="chip chip-warning">{awaitingApproval.length}</span>
+          </h2>
+          {awaitingApproval.map((r) => (
+            <div key={r.id} className="surface-card" style={{ marginBottom: 10 }}>
+              <div className="row-between" style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{r.referrer?.username || r.referrer?.email || 'Unknown referrer'}</span>
+                <span className="text-gold" style={{ fontWeight: 800 }}>{formatCurrency(r.bonus_amount)}</span>
+              </div>
+              <p className="text-faint" style={{ fontSize: 11.5, margin: '0 0 10px' }}>
+                Referred: {r.referred_email || '—'} · Qualified {r.qualified_at ? formatDateShort(r.qualified_at) : ''}
+              </p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12.5 }}
+                  disabled={reviewingId === r.id}
+                  onClick={() => handleReview(r.id, 'approve')}
+                >
+                  <Check size={14} /> Approve
+                </button>
+                <button
+                  style={{
+                    flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12.5,
+                    borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--danger)', cursor: 'pointer'
+                  }}
+                  disabled={reviewingId === r.id}
+                  onClick={() => handleReview(r.id, 'reject')}
+                >
+                  <X size={14} /> Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="grid-3" style={{ marginBottom: 16 }}>

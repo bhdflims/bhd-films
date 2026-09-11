@@ -401,6 +401,7 @@ create table public.referral_settings (
   min_fund_added numeric(12,2) not null default 200,   -- Y: cumulative fund added by the referred customer
   min_order_amount numeric(12,2) not null default 100,  -- X: cumulative order value placed by the referred customer
   bonus_amount numeric(12,2) not null default 31,       -- Z: rupees paid to the referrer
+  require_manual_approval boolean not null default false, -- off = fully automatic (default); on = a Super Admin must approve each bonus (see migration_021)
   updated_at timestamptz not null default now(),
   updated_by uuid references auth.users(id)
 );
@@ -411,7 +412,7 @@ create table public.referrals (
   referred_id uuid not null unique references public.profiles(id) on delete cascade,
   referred_email text,
   referral_code_used text,
-  status text not null default 'pending' check (status in ('pending','qualified','paid')),
+  status text not null default 'pending' check (status in ('pending','qualified','paid','rejected')),
   bonus_amount numeric(12,2),
   qualified_at timestamptz,
   paid_at timestamptz,
@@ -1696,7 +1697,7 @@ declare
 begin
   select * into v_ref from public.referrals where referred_id = p_user_id and status = 'pending' for update;
   if v_ref.id is null then
-    return; -- this person was never referred, or is already qualified/paid
+    return; -- this person was never referred, or is already qualified/paid/rejected
   end if;
 
   select * into v_settings from public.referral_settings where id = true;
@@ -1717,6 +1718,28 @@ begin
 
   if v_total_added < v_settings.min_fund_added or v_total_orders < v_settings.min_order_amount then
     return; -- not there yet
+  end if;
+
+  -- Manual approval switched on: park it as "qualified" (bonus amount
+  -- snapshotted right now, so it can't drift if the bonus amount changes
+  -- before it gets approved) and stop here - no money moves until a
+  -- Super Admin approves it from the Referral Settings page.
+  if v_settings.require_manual_approval then
+    update public.referrals
+    set status = 'qualified', bonus_amount = v_settings.bonus_amount, qualified_at = now()
+    where id = v_ref.id;
+
+    begin
+      perform public.notify_admins(
+        'Referral Awaiting Approval',
+        'A referral just qualified for a ₹' || v_settings.bonus_amount || ' bonus and needs your approval.',
+        '/admin/referral-settings'
+      );
+    exception when others then
+      null; -- safe even if notify_admins() was never set up
+    end;
+
+    return;
   end if;
 
   select * into v_wallet from public.wallets where user_id = v_ref.referrer_id for update;
@@ -1750,6 +1773,79 @@ begin
     jsonb_build_object('status','paid','bonus_amount', v_settings.bonus_amount, 'referrer_id', v_ref.referrer_id, 'referred_id', p_user_id));
 end;
 $$;
+
+-- Super Admin only (same reasoning as admin_adjust_wallet - this directly
+-- moves money into a customer's wallet, so it's not open to admin/staff).
+-- Approves or rejects a referral that's sitting in "qualified" status
+-- because require_manual_approval is switched on (see above).
+create or replace function public.admin_review_referral_bonus(p_referral_id uuid, p_action text)
+returns json
+language plpgsql security definer set search_path = public as $$
+declare
+  v_admin uuid := auth.uid();
+  v_ref public.referrals%rowtype;
+  v_wallet public.wallets%rowtype;
+  v_before numeric;
+  v_after numeric;
+begin
+  if not public.is_super_admin() then
+    raise exception 'Not authorized.';
+  end if;
+  if p_action not in ('approve','reject') then
+    raise exception 'Invalid action.';
+  end if;
+
+  select * into v_ref from public.referrals where id = p_referral_id for update;
+  if v_ref.id is null then
+    raise exception 'Referral not found.';
+  end if;
+  if v_ref.status <> 'qualified' then
+    raise exception 'This referral is not waiting for approval.';
+  end if;
+
+  if p_action = 'reject' then
+    update public.referrals set status = 'rejected' where id = v_ref.id;
+
+    perform public.write_audit_log('referral_bonus_rejected','referral', v_ref.id::text,
+      jsonb_build_object('status','qualified'), jsonb_build_object('status','rejected'));
+
+    return json_build_object('status', 'ok');
+  end if;
+
+  -- approve
+  select * into v_wallet from public.wallets where user_id = v_ref.referrer_id for update;
+  if v_wallet is null then
+    raise exception 'Referrer wallet not found.';
+  end if;
+
+  v_before := v_wallet.available_fund;
+  v_after := v_before + v_ref.bonus_amount;
+
+  update public.wallets
+  set available_fund = v_after, total_fund_added = total_fund_added + v_ref.bonus_amount, updated_at = now()
+  where id = v_wallet.id;
+
+  insert into public.wallet_transactions(wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, created_by_admin_id)
+  values (
+    v_wallet.id, v_ref.referrer_id, 'referral_bonus', v_ref.bonus_amount, v_before, v_after, 'completed',
+    'Referral bonus - the person you referred added funds and placed an order.', v_admin
+  );
+
+  update public.referrals set status = 'paid', paid_at = now() where id = v_ref.id;
+
+  insert into public.notifications(user_id, title, message, type)
+  values (v_ref.referrer_id, 'Referral Bonus Received', 'You earned ₹' || v_ref.bonus_amount || ' for your referral!', 'wallet');
+  perform public.notify_user(v_ref.referrer_id, 'Referral Bonus 🎉', 'You earned ₹' || v_ref.bonus_amount || ' for your referral!', '/refer');
+
+  perform public.write_audit_log('referral_bonus_approved','referral', v_ref.id::text,
+    jsonb_build_object('status','qualified'),
+    jsonb_build_object('status','paid','bonus_amount', v_ref.bonus_amount, 'referrer_id', v_ref.referrer_id, 'referred_id', v_ref.referred_id));
+
+  return json_build_object('status', 'ok');
+end;
+$$;
+
+grant execute on function public.admin_review_referral_bonus(uuid, text) to authenticated;
 
 -- THE core secure checkout function. Recalculates everything server-side,
 -- never trusts a price (or a coupon discount) sent from the browser.
