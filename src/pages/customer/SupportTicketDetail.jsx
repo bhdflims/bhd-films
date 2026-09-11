@@ -218,7 +218,7 @@ export default function SupportTicketDetail() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <label className="icon-btn" style={{ cursor: 'pointer', flexShrink: 0 }}>
               <Upload size={16} />
-              <input type="file" accept="image/*,.pdf" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
+              <input type="file" accept="image/*,application/pdf" style={{ display: 'none' }} onChange={(e) => setFile(e.target.files?.[0] || null)} />
             </label>
             <textarea
               rows={1}
