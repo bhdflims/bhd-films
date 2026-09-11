@@ -38,17 +38,24 @@ export default function Profile() {
   const { canOfferInstall, installed, promptInstall } = useInstallPrompt()
   const [editing, setEditing] = useState(false)
   const [fullName, setFullName] = useState(profile?.full_name || '')
-  const [username, setUsername] = useState(profile?.username || '')
   const [phone, setPhone] = useState(profile?.phone || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSave() {
-    setSaving(true)
     setError('')
+    const trimmedPhone = phone.trim()
+    if (trimmedPhone && !/^[0-9]{10}$/.test(trimmedPhone)) {
+      setError('Mobile number must be exactly 10 digits.')
+      return
+    }
+    setSaving(true)
+    // username is not included here on purpose - it's a fixed ID assigned
+    // at signup and cannot be changed (the database also enforces this,
+    // so even a direct edit attempt would be silently ignored).
     const { error: err } = await supabase
       .from('profiles')
-      .update({ full_name: fullName.trim(), username: username.trim(), phone: phone.trim() || null })
+      .update({ full_name: fullName.trim(), phone: trimmedPhone || null })
       .eq('id', user.id)
     setSaving(false)
     if (err) {
@@ -69,8 +76,14 @@ export default function Profile() {
           {editing ? (
             <>
               <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full name" style={{ marginBottom: 6 }} />
-              <input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" style={{ marginBottom: 6 }} />
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Mobile number (optional)" />
+              <p className="text-faint" style={{ fontSize: 11, margin: '0 0 6px' }}>@{profile?.username} (user ID - can't be changed)</p>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
+                placeholder="Mobile number (10 digits, optional)"
+                inputMode="numeric"
+                maxLength={10}
+              />
             </>
           ) : (
             <>
