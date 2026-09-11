@@ -70,3 +70,47 @@ export function targetLinkErrorMessage(platformKey) {
 export function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')
 }
+
+// ---------------------------------------------------------------
+// Custom comments (services.requires_custom_comments)
+// ---------------------------------------------------------------
+// Customer types their own comment text, one comment per line. Blank
+// lines don't count - only non-blank lines are treated as "a comment".
+// Fewer lines than the ordered quantity is fine; more is not (checked
+// here in the browser AND again, from scratch, inside place_order() on
+// the server - the browser check can always be bypassed).
+
+export function countCommentLines(text) {
+  if (!text) return 0
+  return text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0).length
+}
+
+// Trims a comments block down to at most maxLines non-blank lines as
+// the customer types/pastes, without touching earlier blank lines - so
+// it never fights the customer's own formatting, it just stops letting
+// them go past their selected quantity.
+export function capCommentLines(text, maxLines) {
+  if (!text || !maxLines || maxLines <= 0) return text
+  const lines = text.split('\n')
+  let nonBlank = 0
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].trim().length > 0) {
+      nonBlank++
+      if (nonBlank > maxLines) {
+        return lines.slice(0, i).join('\n')
+      }
+    }
+  }
+  return text
+}
+
+// null when the comments are fine to submit; otherwise a customer-facing
+// error message. quantity may be null/blank (customer hasn't entered a
+// quantity yet) - in that case only the "at least one" check applies.
+export function commentsErrorMessage(count, quantity) {
+  if (count === 0) return 'Please enter at least one comment (one per line).'
+  if (quantity && count > quantity) {
+    return `You entered ${count} comments but only selected a quantity of ${quantity}. Please remove ${count - quantity}.`
+  }
+  return null
+}

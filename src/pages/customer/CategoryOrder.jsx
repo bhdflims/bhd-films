@@ -11,7 +11,7 @@ import ServiceCalculatorCard from '../../components/services/ServiceCalculatorCa
 import { getIcon } from '../../utils/iconMap'
 import { formatCurrency, formatRate } from '../../utils/format'
 import { calculateServiceTotal, validateQuantity } from '../../utils/pricing'
-import { isValidTargetLink, targetLinkErrorMessage } from '../../utils/validators'
+import { isValidTargetLink, targetLinkErrorMessage, countCommentLines, commentsErrorMessage } from '../../utils/validators'
 
 export default function CategoryOrder() {
   const { slug } = useParams()
@@ -26,7 +26,7 @@ export default function CategoryOrder() {
   const [services, setServices] = useState([])
   const [tiersByService, setTiersByService] = useState({})
 
-  const [selection, setSelection] = useState({}) // serviceId -> { selected, quantity, targetLink }
+  const [selection, setSelection] = useState({}) // serviceId -> { selected, quantity, targetLink, customComments }
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -112,7 +112,20 @@ export default function CategoryOrder() {
           s.requires_target_link && state.targetLink && !isValidTargetLink(s.target_platform, state.targetLink)
             ? targetLinkErrorMessage(s.target_platform)
             : null
-        return { service: s, rate, total, qtyError, linkError, quantity: state.quantity, targetLink: state.targetLink }
+        const commentsError = s.requires_custom_comments
+          ? commentsErrorMessage(countCommentLines(state.customComments), state.quantity ? Number(state.quantity) : null)
+          : null
+        return {
+          service: s,
+          rate,
+          total,
+          qtyError,
+          linkError,
+          commentsError,
+          quantity: state.quantity,
+          targetLink: state.targetLink,
+          customComments: state.customComments
+        }
       })
   }, [services, selection, tiersByService])
 
@@ -185,6 +198,13 @@ export default function CategoryOrder() {
           return targetLinkErrorMessage(item.service.target_platform)
         }
       }
+      if (item.service.requires_custom_comments) {
+        const commentsErr = commentsErrorMessage(
+          countCommentLines(item.customComments),
+          item.quantity ? Number(item.quantity) : null
+        )
+        if (commentsErr) return commentsErr
+      }
     }
     return null
   }
@@ -228,7 +248,8 @@ export default function CategoryOrder() {
       const payload = lineItems.map((item) => ({
         service_id: item.service.id,
         quantity: Number(item.quantity),
-        target_link: item.targetLink || null
+        target_link: item.targetLink || null,
+        custom_comments: item.customComments || null
       }))
 
       const { data, error } = await supabase.rpc('place_order', {
@@ -326,12 +347,18 @@ export default function CategoryOrder() {
                     selected={!!state.selected}
                     quantity={state.quantity || ''}
                     targetLink={state.targetLink || ''}
+                    customComments={state.customComments || ''}
                     rate={rate}
                     total={total}
                     quantityError={showErrors && state.quantity ? validateQuantity(s, state.quantity) : null}
                     linkError={
                       showErrors && s.requires_target_link && state.targetLink && !isValidTargetLink(s.target_platform, state.targetLink)
                         ? targetLinkErrorMessage(s.target_platform)
+                        : null
+                    }
+                    commentsError={
+                      showErrors && s.requires_custom_comments
+                        ? commentsErrorMessage(countCommentLines(state.customComments), state.quantity ? Number(state.quantity) : null)
                         : null
                     }
                     onToggle={() =>
@@ -345,6 +372,7 @@ export default function CategoryOrder() {
                     }
                     onQuantityChange={(v) => updateSelection(s.id, { quantity: v })}
                     onLinkChange={(v) => updateSelection(s.id, { targetLink: v })}
+                    onCommentsChange={(v) => updateSelection(s.id, { customComments: v })}
                   />
                 </div>
               )

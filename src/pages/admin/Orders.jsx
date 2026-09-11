@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp, Copy, Check } from 'lucide-react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import Loader from '../../components/common/Loader'
+import CopyButton from '../../components/common/CopyButton'
 import { formatCurrency, formatRate, formatDate } from '../../utils/format'
 
 const STATUSES = ['received', 'processing', 'completed', 'cancelled', 'refunded']
@@ -12,13 +13,6 @@ export default function Orders() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [expanded, setExpanded] = useState(null)
   const [updating, setUpdating] = useState(null)
-  const [copiedId, setCopiedId] = useState(null)
-
-  function copyLink(url, orderId) {
-    navigator.clipboard?.writeText(url)
-    setCopiedId(orderId)
-    setTimeout(() => setCopiedId((id) => (id === orderId ? null : id)), 1500)
-  }
 
   async function load() {
     setLoading(true)
@@ -99,46 +93,77 @@ export default function Orders() {
               {open && (
                 <div style={{ marginTop: 10 }}>
                   {(order.order_items || []).map((item) => (
-                    <div key={item.id} className="row-between" style={{ fontSize: 12, marginBottom: 6, alignItems: 'flex-start' }}>
-                      <span>
-                        {item.service_name_snapshot}
-                        {item.service_external_id_snapshot != null && (
-                          <strong className="text-gold"> (ID: {item.service_external_id_snapshot})</strong>
-                        )}
-                        <br />
-                        <span className="text-faint" style={{ display: 'block', marginTop: 3, lineHeight: 1.7 }}>
-                          {item.is_fixed_price_snapshot ? (
-                            'Fixed one-time package price (no quantity involved)'
-                          ) : (
-                            <>
-                              Quantity ordered: <strong style={{ color: 'var(--text)' }}>{item.quantity}</strong>
-                              <br />
-                              Rate: <strong style={{ color: 'var(--text)' }}>{formatRate(item.applied_rate)}</strong> per 1,000 units
-                              {' = '}
-                              <strong className="text-gold">{formatCurrency(item.item_total)}</strong> charged
-                            </>
-                          )}
+                    <div key={item.id} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px dashed var(--border-soft)' }}>
+                      <div className="row-between" style={{ fontSize: 12, alignItems: 'flex-start' }}>
+                        <span>
+                          {item.service_name_snapshot}
+                          <br />
+                          <span className="text-faint" style={{ display: 'block', marginTop: 3, lineHeight: 1.7 }}>
+                            {item.is_fixed_price_snapshot ? (
+                              'Fixed one-time package price (no quantity involved)'
+                            ) : (
+                              <>
+                                Rate: <strong style={{ color: 'var(--text)' }}>{formatRate(item.applied_rate)}</strong> per 1,000 units
+                                {' = '}
+                                <strong className="text-gold">{formatCurrency(item.item_total)}</strong> charged
+                              </>
+                            )}
+                          </span>
                         </span>
-                      </span>
-                      <span style={{ flexShrink: 0 }}>{formatCurrency(item.item_total)}</span>
+                        <span style={{ flexShrink: 0, fontWeight: 700 }}>{formatCurrency(item.item_total)}</span>
+                      </div>
+
+                      {/* Copy-ready fulfilment fields - exactly what needs
+                          pasting into the supplier panel to process this
+                          line item, with a one-tap copy for each. */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 7 }}>
+                        {item.service_external_id_snapshot != null && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'var(--surface-strong)', borderRadius: 8, padding: '3px 3px 3px 8px' }}>
+                            <span className="text-faint" style={{ fontSize: 9.5 }}>ID</span>
+                            <strong className="text-gold" style={{ fontSize: 11 }}>{item.service_external_id_snapshot}</strong>
+                            <CopyButton text={item.service_external_id_snapshot} label="service ID" size={11} />
+                          </span>
+                        )}
+                        {!item.is_fixed_price_snapshot && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'var(--surface-strong)', borderRadius: 8, padding: '3px 3px 3px 8px' }}>
+                            <span className="text-faint" style={{ fontSize: 9.5 }}>Qty</span>
+                            <strong style={{ fontSize: 11 }}>{item.quantity}</strong>
+                            <CopyButton text={item.quantity} label="quantity" size={11} />
+                          </span>
+                        )}
+                        {item.target_link && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, background: 'var(--surface-strong)', borderRadius: 8, padding: '3px 3px 3px 8px', maxWidth: '100%' }}>
+                            <span className="text-faint" style={{ fontSize: 9.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 150 }}>
+                              {item.target_link}
+                            </span>
+                            <CopyButton text={item.target_link} label="link" size={11} />
+                          </span>
+                        )}
+                      </div>
+
+                      {item.custom_comments && (
+                        <div style={{ marginTop: 8, background: 'var(--surface-strong)', borderRadius: 10, padding: 8 }}>
+                          <div className="row-between" style={{ marginBottom: 4 }}>
+                            <span className="text-faint" style={{ fontSize: 9.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                              Custom Comments ({item.custom_comments.split('\n').filter(Boolean).length})
+                            </span>
+                            <CopyButton text={item.custom_comments} label="all comments" size={12} />
+                          </div>
+                          <pre
+                            style={{
+                              fontSize: 11,
+                              margin: 0,
+                              whiteSpace: 'pre-wrap',
+                              wordBreak: 'break-word',
+                              fontFamily: 'inherit'
+                            }}
+                          >
+                            {item.custom_comments}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   ))}
-                  {order.order_items?.[0]?.target_link && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                      <p className="text-faint" style={{ fontSize: 11, wordBreak: 'break-all', margin: 0, flex: 1 }}>
-                        {order.order_items[0].target_link}
-                      </p>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        style={{ width: 26, height: 26, flexShrink: 0 }}
-                        onClick={() => copyLink(order.order_items[0].target_link, order.id)}
-                        aria-label="Copy link"
-                      >
-                        {copiedId === order.id ? <Check size={12} /> : <Copy size={12} />}
-                      </button>
-                    </div>
-                  )}
                   {order.discount_amount > 0 && (
                     <div className="row-between" style={{ fontSize: 12, marginTop: 8 }}>
                       <span className="text-faint">Coupon {order.coupon_code ? `(${order.coupon_code})` : ''} Discount</span>

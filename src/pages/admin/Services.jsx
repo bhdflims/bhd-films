@@ -19,6 +19,7 @@ const EMPTY = {
   is_fixed_price: false,
   requires_target_link: true,
   target_platform: 'custom',
+  requires_custom_comments: false,
   estimated_time_text: '3-5 minutes',
   is_active: true,
   is_popular: false,
@@ -91,6 +92,7 @@ export default function Services() {
       is_fixed_price: !!form.is_fixed_price,
       requires_target_link: !!form.requires_target_link,
       target_platform: form.target_platform,
+      requires_custom_comments: !!form.requires_custom_comments,
       estimated_time_text: form.estimated_time_text || '3-5 minutes',
       is_active: !!form.is_active,
       is_popular: !!form.is_popular,
@@ -165,6 +167,7 @@ export default function Services() {
               </div>
             </div>
             {svc.is_popular && <span className="chip chip-gold">Popular</span>}
+            {svc.requires_custom_comments && <span className="chip chip-info">Comments</span>}
             <span className={`chip ${svc.is_active ? 'chip-success' : 'chip-danger'}`} style={{ cursor: 'pointer' }} onClick={() => toggleActive(svc)}>
               {svc.is_active ? 'Active' : 'Inactive'}
             </span>
@@ -245,6 +248,15 @@ export default function Services() {
               </select>
             </div>
           )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <input
+              type="checkbox"
+              style={{ width: 18, height: 18 }}
+              checked={form.requires_custom_comments}
+              onChange={(e) => setForm({ ...form, requires_custom_comments: e.target.checked })}
+            />
+            Requires custom comments (e.g. Instagram Comments) — customer types their own comment text, one per line, capped to their quantity
+          </label>
           <div style={{ marginBottom: 10 }}>
             <span className="field-label">Estimated Processing Time</span>
             <input value={form.estimated_time_text} onChange={(e) => setForm({ ...form, estimated_time_text: e.target.value })} placeholder="e.g. 3-5 minutes" />

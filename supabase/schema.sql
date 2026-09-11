@@ -81,6 +81,11 @@ create table public.services (
   base_rate numeric(12,4) not null default 0 check (base_rate >= 0),
   requires_target_link boolean not null default true,
   target_platform text not null default 'custom',
+  -- When on, the customer types their OWN comment text (one comment per
+  -- line) instead of / alongside a target link - used for services like
+  -- "Instagram Comments". Capped to the ordered quantity, both in the
+  -- browser and again inside place_order().
+  requires_custom_comments boolean not null default false,
   estimated_time_text text not null default '3-5 minutes',
   is_active boolean not null default true,
   is_popular boolean not null default false,
@@ -189,6 +194,9 @@ create table public.order_items (
   service_external_id_snapshot int,
   is_fixed_price_snapshot boolean not null default false,
   target_link text,
+  -- The customer's own comment text, one comment per line (only set when
+  -- the service had requires_custom_comments on at the time of order).
+  custom_comments text,
   quantity int not null,
   applied_rate numeric(12,4) not null,
   item_total numeric(12,2) not null,
@@ -1860,6 +1868,9 @@ declare
   v_tier public.service_price_tiers%rowtype;
   v_qty int;
   v_target text;
+  v_comments text;
+  v_comment_lines text[];
+  v_comment_count int;
   v_rate numeric;
   v_item_total numeric;
   v_grand_total numeric := 0;
@@ -1900,10 +1911,13 @@ begin
     raise exception 'Wallet not found.';
   end if;
 
-  create temporary table if not exists tmp_order_items (
-    service_id uuid, service_name text, service_external_id int, is_fixed_price boolean, target_link text, quantity int, applied_rate numeric, item_total numeric
+  -- Dropped and recreated fresh every call (rather than "if not exists")
+  -- so a pooled/reused connection can never be left holding a stale
+  -- column set from before a migration added a new column here.
+  drop table if exists tmp_order_items;
+  create temporary table tmp_order_items (
+    service_id uuid, service_name text, service_external_id int, is_fixed_price boolean, target_link text, quantity int, applied_rate numeric, item_total numeric, custom_comments text
   ) on commit drop;
-  delete from tmp_order_items where true;
 
   for v_item in select * from jsonb_array_elements(p_items) loop
     select * into v_service from public.services where id = (v_item->>'service_id')::uuid and is_active = true;
@@ -1927,6 +1941,26 @@ begin
       if v_target is null or not public.validate_target_link(v_service.target_platform, v_target) then
         raise exception '%: please enter a valid % link.', v_service.name, initcap(v_service.target_platform);
       end if;
+    end if;
+
+    -- Custom comments: one comment per line, capped to the quantity
+    -- ordered (fewer is fine, more is not) - re-checked here from
+    -- scratch since the browser-side cap can always be bypassed.
+    v_comments := nullif(v_item->>'custom_comments', '');
+    if v_service.requires_custom_comments then
+      select array_agg(trim(line)) into v_comment_lines
+        from unnest(string_to_array(coalesce(v_comments, ''), E'\n')) as line
+        where trim(line) <> '';
+      v_comment_count := coalesce(array_length(v_comment_lines, 1), 0);
+      if v_comment_count = 0 then
+        raise exception '%: please enter at least one comment.', v_service.name;
+      end if;
+      if v_comment_count > v_qty then
+        raise exception '%: you entered % comments but only selected a quantity of %. Please enter % or fewer.', v_service.name, v_comment_count, v_qty, v_qty;
+      end if;
+      v_comments := array_to_string(v_comment_lines, E'\n');
+    else
+      v_comments := null;
     end if;
 
     select * into v_tier from public.service_price_tiers
@@ -1953,8 +1987,8 @@ begin
     end if;
     v_grand_total := v_grand_total + v_item_total;
 
-    insert into tmp_order_items(service_id, service_name, service_external_id, is_fixed_price, target_link, quantity, applied_rate, item_total)
-    values (v_service.id, v_service.name, v_service.external_service_id, v_service.is_fixed_price, v_target, v_qty, v_rate, v_item_total);
+    insert into tmp_order_items(service_id, service_name, service_external_id, is_fixed_price, target_link, quantity, applied_rate, item_total, custom_comments)
+    values (v_service.id, v_service.name, v_service.external_service_id, v_service.is_fixed_price, v_target, v_qty, v_rate, v_item_total, v_comments);
 
     if v_category_id is null then
       v_category_id := v_service.category_id;
@@ -2037,8 +2071,8 @@ begin
   values (v_order_code, v_user, v_category_id, v_category_name, v_grand_total, v_discount_amount, case when v_coupon_id is not null then v_coupon.code else null end, 'received', v_est_time, p_idempotency_key)
   returning id into v_order_id;
 
-  insert into public.order_items(order_id, service_id, service_name_snapshot, service_external_id_snapshot, is_fixed_price_snapshot, target_link, quantity, applied_rate, item_total)
-  select v_order_id, service_id, service_name, service_external_id, is_fixed_price, target_link, quantity, applied_rate, item_total from tmp_order_items;
+  insert into public.order_items(order_id, service_id, service_name_snapshot, service_external_id_snapshot, is_fixed_price_snapshot, target_link, quantity, applied_rate, item_total, custom_comments)
+  select v_order_id, service_id, service_name, service_external_id, is_fixed_price, target_link, quantity, applied_rate, item_total, custom_comments from tmp_order_items;
 
   insert into public.wallet_transactions(wallet_id, user_id, type, amount, balance_before, balance_after, status, remark, related_order_id)
   values (
