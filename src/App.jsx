@@ -174,24 +174,24 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="customers" element={<Customers />} />
-            <Route path="customers/:id" element={<CustomerDetail />} />
-            <Route path="categories" element={<Categories />} />
-            <Route path="services" element={<AdminServices />} />
-            <Route path="rate-control" element={<RateControl />} />
-            <Route path="bulk-pricing" element={<BulkPricing />} />
-            <Route path="orders" element={<AdminOrders />} />
-            <Route path="fund-requests" element={<AdminFundRequests />} />
-            <Route path="wallet-transactions" element={<WalletTransactions />} />
-            <Route path="payment-settings" element={<PaymentSettings />} />
-            <Route path="offers" element={<AdminOffers />} />
-            <Route path="coupons" element={<Coupons />} />
-            <Route path="refunds" element={<Refunds />} />
-            <Route path="support" element={<SupportMessages />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="audit-log" element={<AuditLog />} />
-            <Route path="admins" element={<AdminUsers />} />
-            <Route path="maintenance-mode" element={<MaintenanceMode />} />
+            <Route path="customers" element={<AdminRoute permission="view_customers"><Customers /></AdminRoute>} />
+            <Route path="customers/:id" element={<AdminRoute permission="view_customers"><CustomerDetail /></AdminRoute>} />
+            <Route path="categories" element={<AdminRoute permission="manage_categories"><Categories /></AdminRoute>} />
+            <Route path="services" element={<AdminRoute permission="manage_services"><AdminServices /></AdminRoute>} />
+            <Route path="rate-control" element={<AdminRoute permission="manage_rates"><RateControl /></AdminRoute>} />
+            <Route path="bulk-pricing" element={<AdminRoute permission="manage_bulk_pricing"><BulkPricing /></AdminRoute>} />
+            <Route path="orders" element={<AdminRoute permission="manage_orders"><AdminOrders /></AdminRoute>} />
+            <Route path="fund-requests" element={<AdminRoute permission="manage_fund_requests"><AdminFundRequests /></AdminRoute>} />
+            <Route path="wallet-transactions" element={<AdminRoute permission="manage_wallets"><WalletTransactions /></AdminRoute>} />
+            <Route path="payment-settings" element={<AdminRoute permission="manage_payment_settings"><PaymentSettings /></AdminRoute>} />
+            <Route path="offers" element={<AdminRoute permission="manage_offers"><AdminOffers /></AdminRoute>} />
+            <Route path="coupons" element={<AdminRoute permission="manage_coupons"><Coupons /></AdminRoute>} />
+            <Route path="refunds" element={<AdminRoute permission="manage_refunds"><Refunds /></AdminRoute>} />
+            <Route path="support" element={<AdminRoute permission="manage_support"><SupportMessages /></AdminRoute>} />
+            <Route path="reports" element={<AdminRoute permission="view_customers"><Reports /></AdminRoute>} />
+            <Route path="audit-log" element={<AdminRoute permission="view_audit_log"><AuditLog /></AdminRoute>} />
+            <Route path="admins" element={<AdminRoute permission="manage_admins"><AdminUsers /></AdminRoute>} />
+            <Route path="maintenance-mode" element={<AdminRoute permission="manage_payment_settings"><MaintenanceMode /></AdminRoute>} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -132,7 +132,7 @@ export default function AdminUsers() {
                 </label>
               ))}
               <p className="text-faint" style={{ fontSize: 10.5 }}>
-                Staff can never manage wallets, rates, bulk pricing, payment settings, or other admins, regardless of these checkboxes.
+                Staff can never manage wallets, rates, bulk pricing, payment settings (including Maintenance Mode), refunds, or other admins, regardless of these checkboxes.
               </p>
             </div>
           )}

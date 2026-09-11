@@ -2214,8 +2214,15 @@ create policy "tiers_delete" on public.service_price_tiers
   for delete using (public.has_permission('manage_bulk_pricing'));
 
 -- ---------------- rate_history (read-only to admins, written only by triggers) ----------------
+-- Only roles that can actually change a rate/tier (super_admin, admin,
+-- or a staff member... except staff can NEVER hold manage_rates or
+-- manage_bulk_pricing - both are permanently restricted - so in
+-- practice this is admin/super_admin only) can read the pricing change
+-- history. A plain staff account has no legitimate reason to see past
+-- rate changes/reasons, even though it was previously readable by any
+-- admin_users row.
 create policy "rate_history_select" on public.rate_history
-  for select using (public.is_admin());
+  for select using (public.has_permission('manage_rates') or public.has_permission('manage_bulk_pricing'));
 
 -- ---------------- wallets (no direct writes from the client at all) ----------------
 create policy "wallets_select" on public.wallets
@@ -2347,8 +2354,14 @@ create policy "push_subscriptions_select" on public.push_subscriptions
   for select using (user_id = auth.uid() or public.is_admin());
 
 -- ---------------- refund_requests (no direct client writes - RPC only) ----------------
+-- Refunds are money-moving and manage_refunds is permanently restricted
+-- from staff (see has_permission() above), so reading every customer's
+-- refund requests (reasons, proof photos, sometimes bank/UPI details
+-- typed into the reason field) is admin/super_admin only too - a plain
+-- staff account gets no rows here beyond their own (they're customers
+-- of nothing, so effectively zero).
 create policy "refund_requests_select" on public.refund_requests
-  for select using (user_id = auth.uid() or public.is_admin());
+  for select using (user_id = auth.uid() or public.has_permission('manage_refunds'));
 
 -- =====================================================================
 -- SECTION 10: SEED DATA (payment settings singleton row)
