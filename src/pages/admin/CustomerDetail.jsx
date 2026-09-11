@@ -85,6 +85,27 @@ export default function CustomerDetail() {
       setError('A reason is required.')
       return
     }
+
+    // Wallet changes move real money, so this gets the same "are you
+    // sure?" popup that deleting a QR code / storage file already has -
+    // everywhere else in the app that's destructive or money-related
+    // asks first, this was the one gap.
+    const previous = Number(wallet?.available_fund || 0)
+    const next =
+      form.action === 'add'
+        ? previous + Number(form.amount)
+        : form.action === 'deduct'
+        ? previous - Number(form.amount)
+        : Number(form.amount)
+    const actionLabel = form.action === 'add' ? 'Add' : form.action === 'deduct' ? 'Deduct' : 'Set balance to'
+    if (
+      !window.confirm(
+        `${actionLabel} ${formatCurrency(Number(form.amount))} for this customer?\n\nBalance: ${formatCurrency(previous)} → ${formatCurrency(next)}\nReason: ${form.reason.trim()}`
+      )
+    ) {
+      return
+    }
+
     setBusy(true)
     const { data, error: err } = await supabase.rpc('admin_adjust_wallet', {
       p_user_id: id,
