@@ -7,7 +7,7 @@ import { useLocation } from 'react-router-dom'
 // is hardcoded in index.html - so even from the admin login page, the
 // installed icon would look like and open the customer app instead. With
 // this in place, adding to home screen from anywhere under /admin creates a
-// SEPARATE icon (its own red "A" picture and its own name, "BHD Films
+// SEPARATE icon (its own red "A" picture and its own name, "BHD Flims
 // Admin") that opens straight into the admin panel.
 //
 // IMPORTANT: iOS Safari's "Add to Home Screen" picks the icon picture from
@@ -28,12 +28,12 @@ export default function ManifestSwitcher() {
       manifestLink.setAttribute('href', isAdminSection ? '/manifest-admin.webmanifest' : '/manifest.webmanifest')
     }
     if (appleTitle) {
-      appleTitle.setAttribute('content', isAdminSection ? 'BHD Films Admin' : 'BHD Films')
+      appleTitle.setAttribute('content', isAdminSection ? 'BHD Flims Admin' : 'BHD Flims')
     }
     if (appleTouchIcon) {
       appleTouchIcon.setAttribute('href', isAdminSection ? '/icons/apple-touch-icon-admin.png' : '/icons/apple-touch-icon.png')
     }
-    document.title = isAdminSection ? 'BHD Films Admin' : 'BHD Films'
+    document.title = isAdminSection ? 'BHD Flims Admin' : 'BHD Flims'
   }, [location.pathname])
 
   return null

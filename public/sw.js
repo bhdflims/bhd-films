@@ -1,4 +1,4 @@
-// BHD Films service worker.
+// BHD Flims service worker.
 // Two jobs only: (1) let the browser treat this site as an installable app,
 // (2) receive Web Push messages sent by the supabase/functions/send-push
 // Edge Function and turn them into real OS notifications.
@@ -12,7 +12,7 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'BHD Films', body: 'You have a new update.', url: '/' }
+  let payload = { title: 'BHD Flims', body: 'You have a new update.', url: '/' }
   try {
     if (event.data) payload = { ...payload, ...event.data.json() }
   } catch {

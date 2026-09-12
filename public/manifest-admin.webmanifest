@@ -1,7 +1,7 @@
 {
-  "name": "BHD Films Admin",
+  "name": "BHD Flims Admin",
   "short_name": "BHD Admin",
-  "description": "BHD Films admin panel",
+  "description": "BHD Flims admin panel",
   "start_url": "/admin?source=pwa",
   "scope": "/admin",
   "display": "standalone",
