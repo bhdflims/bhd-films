@@ -8,6 +8,18 @@ import { compressImage } from '../../utils/imageCompress'
 
 const STATUSES = ['pending', 'under_review', 'approved', 'rejected', 'reupload_required']
 
+// Quick-fill reasons shown as tappable chips above the Remark box when
+// rejecting a fund request - saves typing out the same few reasons over
+// and over. Tapping one fills the Remark box with its full text, which
+// can then still be freely edited/replaced - so a fully custom reason is
+// always just as possible as before, this is purely a shortcut.
+const REJECT_REASONS = [
+  { label: 'Wrong receipt', text: 'Wrong payment receipt — the screenshot does not match this amount.' },
+  { label: 'Fake payment', text: 'This payment appears fake and has been blocked.' },
+  { label: 'Not received', text: 'Payment not received in our account yet.' },
+  { label: 'Duplicate request', text: 'Duplicate request — already reviewed.' }
+]
+
 export default function AdminFundRequests() {
   const [loading, setLoading] = useState(true)
   const [requests, setRequests] = useState([])
@@ -58,7 +70,7 @@ export default function AdminFundRequests() {
 
   function openAction(request, action) {
     setActionModal({ request, action })
-    setRemark(action === 'approve' ? 'Fund has been successfully added to your wallet.' : '')
+    setRemark(action === 'approve' ? 'Fund has been successfully added to your wallet. You can order the service now — best wishes! 🎉' : '')
     setError('')
   }
 
@@ -242,6 +254,24 @@ export default function AdminFundRequests() {
           <p className="text-dim" style={{ fontSize: 12.5, marginBottom: 10 }}>
             {actionModal.request.request_code} · {formatCurrency(actionModal.request.amount)}
           </p>
+          {actionModal.action === 'reject' && (
+            <div style={{ marginBottom: 10 }}>
+              <span className="field-label">Quick reasons (tap to fill in, then edit if needed)</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                {REJECT_REASONS.map((r) => (
+                  <button
+                    key={r.label}
+                    type="button"
+                    className="chip chip-danger"
+                    style={{ cursor: 'pointer', border: 'none' }}
+                    onClick={() => setRemark(r.text)}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <span className="field-label">Remark</span>
           <textarea rows={3} value={remark} onChange={(e) => setRemark(e.target.value)} />
           {error && <div className="field-error" style={{ marginTop: 8 }}>{error}</div>}

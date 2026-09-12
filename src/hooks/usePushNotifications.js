@@ -54,7 +54,21 @@ export function usePushNotifications() {
 
       setSubscribed(true)
     } catch (e) {
-      setError(e.message || 'Could not enable notifications.')
+      // On some Android phones (commonly ones without Google Play
+      // Services fully set up/signed in, or with aggressive battery
+      // optimization), the browser's own push registration with Google's
+      // push service fails - Chrome surfaces this as an AbortError with
+      // the message "Registration failed - push service error". This is
+      // a device/OS-level limitation, not something wrong with the app
+      // or something we can fix from here, so it gets a plainer,
+      // non-alarming message instead of the raw technical error text.
+      const rawMessage = e?.message || ''
+      const isDevicePushServiceIssue = e?.name === 'AbortError' || /push service/i.test(rawMessage)
+      setError(
+        isDevicePushServiceIssue
+          ? "This phone's push service isn't available right now — that's a device limitation, not an app problem. You can still see every update inside the app's bell icon any time."
+          : rawMessage || 'Could not enable notifications.'
+      )
     } finally {
       setSubscribing(false)
     }

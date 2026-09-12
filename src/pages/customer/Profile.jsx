@@ -143,7 +143,11 @@ export default function Profile() {
           )}
         </div>
       )}
-      {pushError && <div className="field-error" style={{ marginTop: -8, marginBottom: 12 }}>{pushError}</div>}
+      {pushError && (
+        <p className="text-faint" style={{ fontSize: 11.5, lineHeight: 1.5, marginTop: -8, marginBottom: 12 }}>
+          {pushError}
+        </p>
+      )}
 
       <div className="surface-card" style={{ padding: 6 }}>
         {MENU.map((item) => (

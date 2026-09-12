@@ -37,12 +37,20 @@ export default function Orders() {
   }, [])
 
   async function handleStatusChange(order, status) {
+    if (status === order.status) return
+
     const movesToRefundState = (status === 'cancelled' || status === 'refunded') && order.status !== 'cancelled' && order.status !== 'refunded'
     if (movesToRefundState) {
       const paidAmount = order.grand_total - (order.discount_amount || 0)
       const ok = window.confirm(
-        `This will automatically refund ${formatCurrency(paidAmount)} to the customer's wallet (what they actually paid after any coupon discount). Continue?`
+        `Mark ${order.order_code} as "${status}"? This will automatically refund ${formatCurrency(paidAmount)} to the customer's wallet (what they actually paid after any coupon discount).`
       )
+      if (!ok) return
+    } else {
+      // Every other status change also gets a confirm now, not just the
+      // refund ones - a wrong tap here is visible straight to the
+      // customer, so it's worth one extra "are you sure" either way.
+      const ok = window.confirm(`Mark ${order.order_code} as "${status}"? The customer will immediately see this updated status.`)
       if (!ok) return
     }
     setUpdating(order.id)

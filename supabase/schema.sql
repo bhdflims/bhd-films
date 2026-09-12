@@ -1129,7 +1129,7 @@ begin
     end if;
     v_before := v_wallet.available_fund;
     v_after := v_before + v_fr.amount;
-    v_final_remark := coalesce(nullif(trim(p_remark), ''), 'Fund has been successfully added to your wallet.');
+    v_final_remark := coalesce(nullif(trim(p_remark), ''), 'Fund has been successfully added to your wallet. You can order the service now — best wishes!');
 
     update public.wallets
     set available_fund = v_after, total_fund_added = total_fund_added + v_fr.amount, updated_at = now()
