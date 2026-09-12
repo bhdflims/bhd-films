@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, MessageSquareText, X } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
 import { timeAgo } from '../../utils/format'
+
+const GUTTER = 12 // matches the app's usual side padding
 
 // Notification Bell for the customer header. Shows an unread badge and a
 // dropdown of recent notifications (currently: support ticket replies).
@@ -11,6 +13,36 @@ export default function NotificationBell() {
   const navigate = useNavigate()
   const { notifications, unreadCount, markRead } = useNotifications()
   const [open, setOpen] = useState(false)
+  const buttonRef = useRef(null)
+  const [pos, setPos] = useState({ top: 60, right: GUTTER, width: 320 })
+
+  // Positions the dropdown using the bell button's ACTUAL on-screen
+  // location (position: fixed, measured against the real viewport)
+  // instead of anchoring it to the small button's own box with CSS
+  // alone. On some Android phones/browsers that old anchor pushed the
+  // panel's left edge straight off the side of the screen (reported:
+  // "coming too much to the corner" - worked fine on iPhone, but the
+  // exact math differs enough by device/browser that anchoring in CSS
+  // alone isn't reliable). This is measured and clamped so the panel can
+  // never overflow either edge, on any device, and useLayoutEffect (not
+  // useEffect) means it's positioned correctly before the very first
+  // paint - no visible jump.
+  useLayoutEffect(() => {
+    if (!open || !buttonRef.current) return
+    function place() {
+      const rect = buttonRef.current.getBoundingClientRect()
+      const width = Math.min(320, window.innerWidth - GUTTER * 2)
+      let right = window.innerWidth - rect.right
+      if (right + width > window.innerWidth - GUTTER) {
+        right = window.innerWidth - width - GUTTER
+      }
+      if (right < GUTTER) right = GUTTER
+      setPos({ top: rect.bottom + 8, right, width })
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [open])
 
   async function handleClick(n) {
     if (!n.is_read) await markRead(n.id)
@@ -22,7 +54,7 @@ export default function NotificationBell() {
 
   return (
     <div style={{ position: 'relative' }}>
-      <button className="icon-btn" onClick={() => setOpen((o) => !o)} aria-label="Notifications" style={{ position: 'relative' }}>
+      <button ref={buttonRef} className="icon-btn" onClick={() => setOpen((o) => !o)} aria-label="Notifications" style={{ position: 'relative' }}>
         <Bell size={18} />
         {unreadCount > 0 && (
           <span
@@ -54,11 +86,10 @@ export default function NotificationBell() {
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
           <div
             style={{
-              position: 'absolute',
-              top: 'calc(100% + 8px)',
-              right: 0,
-              width: 320,
-              maxWidth: '88vw',
+              position: 'fixed',
+              top: pos.top,
+              right: pos.right,
+              width: pos.width,
               maxHeight: 380,
               overflowY: 'auto',
               zIndex: 41,
