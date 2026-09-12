@@ -4,27 +4,18 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import Loader from '../../components/common/Loader'
 import { formatDate } from '../../utils/format'
+import { DEFAULT_ABOUT, DEFAULT_TERMS, termsToBoxText } from '../../utils/brandContent'
 
-// The app's original, built-in text — used only to SHOW an admin what
-// customers currently see when a field below is left blank. The actual
-// fallback logic lives in the customer-facing pages themselves
-// (About.jsx, Terms.jsx, Home.jsx, TopHeader.jsx) so this page never has
-// to duplicate/own that text, it's just shown here for reference.
-const DEFAULT_ABOUT =
-  "BHD Films helps creators and businesses grow their presence across social platforms with transparent, rate-controlled services. Every price you see is set live by our team and every order you place uses the exact rate shown at checkout, permanently recorded on your order history.\n\nNeed help? Reach out any time from the Support section in your Profile."
-const DEFAULT_TERMS = [
-  'Small-Scale Platform: BHD Films is a small-scale SMM & entertainment platform.',
-  'Purpose: Our services are provided for promotional and entertainment purposes only.',
-  'Third-Party Services: Services are sourced through third-party SMM providers and are not officially authorized by Meta, Instagram, Facebook, TikTok, YouTube, or other social media platforms.',
-  'Privacy: BHD Films never asks for your password, OTP, login details, or sensitive account information.',
-  'Link-Based Service: Orders are processed only through the social media link provided by the customer.',
-  'Success Rate: 100% success is not guaranteed. Our services have an expected success/delivery rate of up to 95%.',
-  'No Refund: Once an order is placed or started, no refund or cancellation is available.',
-  'Delivery: Delivery time and results may vary due to platform updates, restrictions, removals, or technical issues.',
-  'Customer Responsibility: Customers must provide the correct and accessible social media link.',
-  'Order Delivery: BHD Films makes every effort to successfully deliver valid orders, but permanent retention is not guaranteed unless specifically mentioned.',
-  'Acceptance: By placing an order, you agree to these Terms & Conditions.'
-].join('\n')
+// The exact text these two boxes below pre-fill themselves with the
+// moment nothing's been saved yet - same text customers see on the About
+// Us / Terms pages right now. Editing a word here and hitting Save is all
+// it takes; the "Reset" links next to each box clear the box back to
+// this same built-in starting point if needed. (The "Need help? Reach
+// out..." line on the About Us page is separate, fixed footer text, not
+// part of this box - it always shows underneath, so it's not included
+// here.)
+const DEFAULT_ABOUT_BOX = DEFAULT_ABOUT
+const DEFAULT_TERMS_BOX = termsToBoxText(DEFAULT_TERMS)
 
 export default function BrandDetails() {
   const { user } = useAuth()
@@ -78,8 +69,8 @@ export default function BrandDetails() {
       </h1>
       <p className="text-faint" style={{ fontSize: 12, marginTop: 0, marginBottom: 18 }}>
         Change the text customers see on About Us, Terms &amp; Conditions, the home page, and the app header —
-        without asking anyone to edit code. Leave any box empty to keep the app's original built-in text; it
-        won't show blank.
+        without asking anyone to edit code. The About Us and Terms boxes below already show exactly what's live
+        today, so you can just fix a word or spelling directly and hit Save.
       </p>
 
       {/* ---------------- Header ---------------- */}
@@ -154,29 +145,51 @@ export default function BrandDetails() {
 
       {/* ---------------- About Us ---------------- */}
       <div className="surface-card" style={{ marginBottom: 16 }}>
-        <strong style={{ fontSize: 13.5 }}>About Us Page</strong>
+        <div className="row-between" style={{ marginBottom: 6 }}>
+          <strong style={{ fontSize: 13.5 }}>About Us Page</strong>
+          <button
+            type="button"
+            onClick={() => setSettings({ ...settings, about_content: '' })}
+            className="text-faint"
+            style={{ background: 'none', border: 'none', textDecoration: 'underline', fontSize: 11, cursor: 'pointer', padding: 0 }}
+          >
+            Reset to original text
+          </button>
+        </div>
         <p className="text-faint" style={{ fontSize: 11.5, margin: '6px 0 10px' }}>
-          Leave a blank line between paragraphs. Leave this whole box empty to keep the original About Us text.
+          This box already shows exactly what customers see today — just fix a word or spelling and hit Save.
+          Leave a blank line between paragraphs. English only (no Hindi version of this page exists).
         </p>
         <textarea
           rows={6}
-          placeholder={DEFAULT_ABOUT}
-          value={settings.about_content || ''}
+          value={settings.about_content || DEFAULT_ABOUT_BOX}
           onChange={(e) => setSettings({ ...settings, about_content: e.target.value })}
         />
       </div>
 
       {/* ---------------- Terms & Conditions ---------------- */}
       <div className="surface-card" style={{ marginBottom: 16 }}>
-        <strong style={{ fontSize: 13.5 }}>Terms &amp; Conditions</strong>
+        <div className="row-between" style={{ marginBottom: 6 }}>
+          <strong style={{ fontSize: 13.5 }}>Terms &amp; Conditions</strong>
+          <button
+            type="button"
+            onClick={() => setSettings({ ...settings, terms_content: '' })}
+            className="text-faint"
+            style={{ background: 'none', border: 'none', textDecoration: 'underline', fontSize: 11, cursor: 'pointer', padding: 0 }}
+          >
+            Reset to original text
+          </button>
+        </div>
         <p className="text-faint" style={{ fontSize: 11.5, margin: '6px 0 10px' }}>
-          One line = one numbered term on the Terms page. Leave this whole box empty to keep the original 11
-          terms.
+          This box already shows all 11 terms exactly as customers see them today, English AND Hindi together —
+          just fix a word or spelling and hit Save. Each term is two lines: the English line, then its Hindi
+          line right below it. Leave a blank line between each term (a term with no Hindi is just one line, still
+          followed by a blank line). Don't add or remove blank lines in the middle of a single term's two lines,
+          or its Hindi line will be read as a new term.
         </p>
         <textarea
-          rows={10}
-          placeholder={DEFAULT_TERMS}
-          value={settings.terms_content || ''}
+          rows={16}
+          value={settings.terms_content || DEFAULT_TERMS_BOX}
           onChange={(e) => setSettings({ ...settings, terms_content: e.target.value })}
         />
       </div>

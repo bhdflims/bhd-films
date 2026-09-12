@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Clapperboard, Mail, Phone } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-
-// The app's original built-in text - shown whenever the admin hasn't
-// filled in a custom About Us text on the Brand Details page yet, so
-// this page never goes blank.
-const DEFAULT_ABOUT =
-  'BHD Films helps creators and businesses grow their presence across social platforms with transparent, rate-controlled services. Every price you see is set live by our team and every order you place uses the exact rate shown at checkout, permanently recorded on your order history.'
+import { DEFAULT_ABOUT } from '../../utils/brandContent'
 
 export default function About() {
   const [brand, setBrand] = useState(null)
