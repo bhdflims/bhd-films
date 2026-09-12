@@ -63,7 +63,7 @@ export default function ReferEarn() {
   }
 
   const whatsappText = encodeURIComponent(
-    `Join BHD Films and get social media growth services at great rates! Sign up using my link: ${link}`
+    `Join BHD Flims and get social media growth services at great rates! Sign up using my link: ${link}`
   )
 
   return (
@@ -149,7 +149,7 @@ export default function ReferEarn() {
         <div className="surface-card" style={{ marginBottom: 16 }}>
           <strong style={{ fontSize: 13.5 }}>How it works</strong>
           <p className="text-dim" style={{ fontSize: 12.5, lineHeight: 1.6, margin: '8px 0 0' }}>
-            Share your code or link with a friend who hasn't used BHD Films before. Once they sign up, add at least{' '}
+            Share your code or link with a friend who hasn't used BHD Flims before. Once they sign up, add at least{' '}
             <strong>{formatCurrency(settings.min_fund_added)}</strong> to their wallet, and place orders totaling at
             least <strong>{formatCurrency(settings.min_order_amount)}</strong>, you'll automatically get{' '}
             <strong className="text-gold">{formatCurrency(settings.bonus_amount)}</strong> credited to your own
